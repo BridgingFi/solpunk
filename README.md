@@ -119,9 +119,12 @@ sequenceDiagram
 
 ```
 solpunk/
-├── contracts/          # Solana Programs
-├── frontend/           # Frontend
-├── tests/              # Test Files
+├── scripts/            # TypeScript deployment and utility scripts
+├── src/                # Frontend source code
+├── index.html          # Frontend entry point
+├── README.md           # Project documentation
+├── .nvmrc              # Node.js version configuration
+├── vite.config.ts      # Vite configuration
 ```
 
 ## 🚀 Quick Start
@@ -138,13 +141,19 @@ solpunk/
 pnpm run create:mint
 ```
 
+### Start the Frontend (Vite)
+
+```bash
+pnpm run dev
+```
+
+This command launches the frontend locally for UI development (default: http://localhost:5173).
+
 ## References
 
 - [Solana Documentation](https://solana.com/docs)
 - [SPL Token Documentation](https://spl.solana.com/token)
 - [Solana CLI Documentation](https://docs.solana.com/cli)
-- [MCP Server](https://mcp.solana.com/)
-- [LLMs.txt](https://solana.com/llms.txt)
 - [Colosseum Cypherpunk Hackathon](https://www.colosseum.com/cypherpunk)
 
 ## Contact
