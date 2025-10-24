@@ -53,6 +53,11 @@ interface WalletConnectRef {
   isConnecting: boolean;
 }
 
+interface WalletDisconnectRef {
+  disconnect: () => Promise<void>;
+  isDisconnecting: boolean;
+}
+
 const WalletIconWithConnect = forwardRef<
   WalletConnectRef,
   { wallet: UiWallet }
@@ -75,6 +80,28 @@ const WalletIconWithConnect = forwardRef<
   );
 });
 
+const WalletDisconnectIcon = forwardRef<
+  WalletDisconnectRef,
+  { wallet: UiWallet }
+>(function WalletDisconnectIcon({ wallet }, ref) {
+  const [isDisconnecting, disconnect] = useDisconnect(wallet);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      disconnect,
+      isDisconnecting,
+    }),
+    [disconnect, isDisconnecting],
+  );
+
+  return isDisconnecting ? (
+    <Spinner className="h-4 w-4" size="sm" />
+  ) : (
+    <LogOut className="h-4 w-4" />
+  );
+});
+
 export function WalletConnectButton() {
   const {
     isConnected,
@@ -88,39 +115,36 @@ export function WalletConnectButton() {
   const walletRefs = useRef(
     new Map<string, React.RefObject<WalletConnectRef>>(),
   );
-
-  // Disconnect can be handled directly in parent component
-  // Only call useDisconnect when there's a selected wallet
-  const dummyWallet = wallets[0] || ({} as UiWallet);
-  const [isDisconnecting, disconnect] = useDisconnect(
-    selectedWallet ?? dummyWallet,
-  );
+  const disconnectRef = useRef<React.RefObject<WalletDisconnectRef>>({
+    current: null,
+  });
 
   const triggerButton =
     wallets.length === 0 ? (
-      <>
-        <Wallet className="mr-2 h-4 w-4" />
-        <span>No wallets detected</span>
-      </>
+      <Button
+        isDisabled
+        className="min-w-[140px] justify-between"
+        startContent={<Wallet className="mr-2 h-4 w-4" />}
+        variant="bordered"
+      >
+        No wallets detected
+      </Button>
     ) : (
-      <Button className="min-w-[140px] justify-between" variant="bordered">
-        {isConnected && selectedWallet && selectedAccount ? (
-          <>
-            <div className="flex items-center gap-2">
-              <WalletIcon className="h-4 w-4" wallet={selectedWallet} />
-              <span className="font-mono text-sm">
-                {truncateAddress(selectedAccount.address)}
-              </span>
-            </div>
-            <NavArrowDown className="ml-2 h-4 w-4" />
-          </>
-        ) : (
-          <>
-            <Wallet className="mr-2 h-4 w-4" />
-            <span>Connect Wallet</span>
-            <NavArrowDown className="ml-2 h-4 w-4" />
-          </>
-        )}
+      <Button
+        className="min-w-[140px] justify-between font-mono"
+        endContent={<NavArrowDown className="ml-2 h-4 w-4" />}
+        startContent={
+          isConnected && selectedWallet && selectedAccount ? (
+            <WalletIcon className="h-4 w-4" wallet={selectedWallet} />
+          ) : (
+            <Wallet className="h-4 w-4" />
+          )
+        }
+        variant="bordered"
+      >
+        {isConnected && selectedWallet && selectedAccount
+          ? truncateAddress(selectedAccount.address)
+          : "Connect Wallet"}
       </Button>
     );
 
@@ -151,10 +175,13 @@ export function WalletConnectButton() {
   };
 
   const handleDisconnect = async () => {
-    if (isDisconnecting || !selectedWallet) return;
+    const impl = disconnectRef.current.current;
+
+    if (!impl || impl.isDisconnecting || !selectedWallet || !isConnected)
+      return;
 
     try {
-      await disconnect();
+      await impl.disconnect();
       setWalletAndAccount(null, null);
       setDropdownOpen(false);
     } catch (err) {
@@ -207,13 +234,11 @@ export function WalletConnectButton() {
             <DropdownItem
               key="disconnect"
               className="text-danger"
-              isDisabled={isDisconnecting}
               startContent={
-                isDisconnecting ? (
-                  <Spinner className="h-4 w-4" size="sm" />
-                ) : (
-                  <LogOut className="h-4 w-4" />
-                )
+                <WalletDisconnectIcon
+                  ref={disconnectRef.current}
+                  wallet={selectedWallet}
+                />
               }
               onPress={handleDisconnect}
             >
