@@ -6,23 +6,24 @@ BridgingFi is an RWA (Real World Asset) protocol that brings property-backed len
 
 ## System Overview
 
-### 1. GBPL Token and Staking System
+### 1. GBPL Token System
 
-**Overview**: A yield-bearing token system that allows users to convert USDC to GBPL and earn rewards through staking.
+**Overview**: A yield-bearing token system built using Token-2022 that allows users to mint GBPL tokens and earn yield through real estate lending.
 
 **Key Features**:
 
-- **GBPL Token**: Built using Reflect Money's USDC+ strategy for automatic yield generation
-- **Staking Mechanism**: Users can stake GBPL tokens to earn additional rewards
-- **Reward Distribution**: Dynamic reward calculation based on staking duration and amount
-- **Simple Integration**: Leverages Reflect Money's proven infrastructure
+- **GBPL Token**: Built using Token-2022 for advanced token functionality
+- **Yield Generation**: Users earn yield through real estate lending activities
+- **Simple Minting**: Easy token minting and burning functionality
+- **Advanced Features**: Token-2022 supports transfer fees, permanent delegates, and more
+- **Future-Proof**: Latest Solana token standard with enhanced capabilities
 
 **User Flow**:
 
-1. Convert USDC to GBPL tokens
-2. Stake GBPL tokens in the staking pool
-3. Earn rewards from both Reflect Money's USDC+ strategy and staking bonuses
-4. Claim rewards at any time
+1. Convert USDC to GBPL tokens (using Token-2022)
+2. Hold GBPL tokens to earn yield from real estate lending
+3. Convert GBPL back to USDC when needed (using Token-2022 burning)
+4. Yield is distributed through the protocol's lending activities
 
 ### 2. BTC Yield Protocol
 
@@ -50,12 +51,12 @@ BridgingFi is an RWA (Real World Asset) protocol that brings property-backed len
 graph TB
     A[USDC] -->|Convert| B[GBPL Token]
 
-    I[USDC+ Strategy] -->|Strategy| B
+    I[Token-2022] -->|Create| B
 
     subgraph "GBPL System"
-        B -->|Stake| C[Staking Pool]
-        D[Interest] -->|Yield| C
-        D -->|Yield| B
+        B -->|Hold| C[Yield Generation]
+        D[Real Estate] -->|Yield| C
+        C -->|Distribute| B
     end
 
     A -->|HTLC| F
@@ -69,27 +70,29 @@ graph TB
 ### Tech Stack
 
 - **Blockchain**: Solana
-- **Stablecoin Protocol**: Reflect Money (@reflectmoney/stable.ts)
+- **SDK**: @solana/kit (Modern Solana SDK)
+- **Token Protocol**: Token-2022 (Advanced Token Program)
+- **Deployment**: TypeScript Scripts + CLI
+- **Frontend**: HTML/CSS/JavaScript
 - **Cross-chain**: HTLC
-- **Frontend**: Lit/Vercel
 - **Wallet Integration**: Phantom, Solflare
 
 ## User Flows
 
-### GBPL Staking Flow
+### GBPL Token Flow
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant S as BridgingFi
-    participant R as Reflect Money
+    participant T as Token-2022
 
     U->>S: Convert USDC to GBPL
-    S->>R: Apply USDC+ Strategy
-    R->>S: Return GBPL Token
-    S->>U: Issue GBPL Token
-    U->>S: Stake GBPL
-    S->>U: Start Staking Rewards
+    S->>T: Create Token with Token-2022
+    T->>S: Return Token Mint
+    S->>U: Issue GBPL Tokens
+    U->>S: Hold GBPL Tokens
+    S->>U: Distribute Yield
 ```
 
 ### BTC Lending Flow
@@ -121,11 +124,27 @@ solpunk/
 ├── tests/              # Test Files
 ```
 
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js v22.19.0 (use `.nvmrc` file)
+- pnpm package manager
+
+### Deployment Commands
+
+```bash
+# Deploy to devnet (for testing)
+pnpm run create:mint
+```
+
 ## References
 
-- [Reflect Money Documentation](https://reflect.money/)
-- [Reflect SDK](https://www.npmjs.com/package/@reflectmoney/stable.ts)
-- [Solana Program Library](https://spl.solana.com/)
+- [Solana Documentation](https://solana.com/docs)
+- [SPL Token Documentation](https://spl.solana.com/token)
+- [Solana CLI Documentation](https://docs.solana.com/cli)
+- [MCP Server](https://mcp.solana.com/)
+- [LLMs.txt](https://solana.com/llms.txt)
 - [Colosseum Cypherpunk Hackathon](https://www.colosseum.com/cypherpunk)
 
 ## Contact
