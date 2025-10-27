@@ -23,6 +23,7 @@
     "@react-types/shared": "3.32.1",
     "@solana-program/memo": "^0.9.0",
     "@solana-program/system": "^0.9.0",
+    "@solana-program/token": "^0.7.0",
     "@solana-program/token-2022": "^0.6.0",
     "@solana/kit": "^4.0.0",
     "@solana/react": "^5.0.0",

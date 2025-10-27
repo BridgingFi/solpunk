@@ -3,24 +3,29 @@ import {
   findAssociatedTokenPda,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from "@solana-program/token-2022";
+import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import { addToast } from "@heroui/toast";
+import { Address } from "@solana/kit";
 
 import DefaultLayout from "@/layouts/default";
 import { WalletConnectButton } from "@/components/solana-connect-button";
 import { useSolana } from "@/components/solana-provider";
-import { addToast } from "@heroui/toast";
 
 // GBPL Token Mint Address (should be set from env or config)
 const GBPL_MINT_ADDRESS = import.meta.env.VITE_GBPL_MINT_ADDRESS || "";
+const USDC_MINT_ADDRESS = import.meta.env.VITE_USDC_MINT_ADDRESS || "";
 
 export default function IndexPage() {
   const { isConnected, selectedAccount, rpc } = useSolana();
   const [balance, setBalance] = useState<number | null>(null);
   const [gbplBalance, setGbplBalance] = useState<string | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isConnected || !selectedAccount) {
       setBalance(null);
       setGbplBalance(null);
+      setUsdcBalance(null);
 
       return;
     }
@@ -43,42 +48,75 @@ export default function IndexPage() {
       }
     };
 
-    // Fetch GBPL balance
-    const fetchGbplBalance = async () => {
-      if (!GBPL_MINT_ADDRESS) {
-        setGbplBalance(null);
+    // Generic function to fetch token balance
+    const fetchTokenBalance = async (
+      mintAddress: Address,
+      tokenProgram: Address,
+      setBalance: (value: string | null) => void,
+      errorTitle: string,
+    ) => {
+      if (!mintAddress) {
+        setBalance(null);
 
         return;
       }
 
       try {
-        const mintAddress = GBPL_MINT_ADDRESS as any;
-
         // Find associated token account
         const [associatedTokenAddress] = await findAssociatedTokenPda({
           owner: selectedAccount.address as any,
-          tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
           mint: mintAddress,
+          tokenProgram,
         });
+
+        // Check if token account exists
+        const tokenAccountInfo = await rpc
+          .getAccountInfo(associatedTokenAddress, { encoding: "base64" })
+          .send();
+
+        if (!tokenAccountInfo.value) {
+          setBalance("0");
+
+          return;
+        }
 
         // Get token balance
         const balanceResponse = await rpc
           .getTokenAccountBalance(associatedTokenAddress)
           .send();
 
-        setGbplBalance(balanceResponse.value.uiAmountString || "0");
+        setBalance(balanceResponse.value.uiAmountString || "0");
       } catch (err) {
         addToast({
-          title: "Failed to fetch GBPL balance",
+          title: errorTitle,
           description: err instanceof Error ? err.message : String(err),
           color: "warning",
         });
-        setGbplBalance("0");
+        setBalance("0");
       }
     };
 
+    // Fetch GBPL balance
+    const fetchGbplBalance = () =>
+      fetchTokenBalance(
+        GBPL_MINT_ADDRESS,
+        TOKEN_2022_PROGRAM_ADDRESS,
+        setGbplBalance,
+        "Failed to fetch GBPL balance",
+      );
+
+    // Fetch USDC balance
+    const fetchUsdcBalance = () =>
+      fetchTokenBalance(
+        USDC_MINT_ADDRESS,
+        TOKEN_PROGRAM_ADDRESS,
+        setUsdcBalance,
+        "Failed to fetch USDC balance",
+      );
+
     fetchBalance();
     fetchGbplBalance();
+    fetchUsdcBalance();
   }, [isConnected, selectedAccount, rpc]);
 
   return (
@@ -88,21 +126,26 @@ export default function IndexPage() {
       <section className="flex flex-col justify-center gap-4 py-8 md:py-10">
         {isConnected && selectedAccount ? (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-default-500">Connected Wallet</p>
-              <p className="font-mono text-xs">{selectedAccount.address}</p>
+            <div className="flex flex-col gap-2 text-xs">
+              <p className="text-default-500">Connected Wallet</p>
+              <p className="font-mono ">{selectedAccount.address}</p>
             </div>
 
-            <div className="flex flex-col gap-2 border-t pt-4">
-              <p className="text-sm font-semibold">Balances</p>
+            <div className="flex text-xs flex-col gap-2 border-t pt-4">
+              <p className="text-lg font-semibold">Balances</p>
               {balance !== null && (
-                <p className="text-lg">
+                <p>
                   SOL:{" "}
                   <span className="font-semibold">{balance.toFixed(4)}</span>
                 </p>
               )}
+              {usdcBalance !== null && (
+                <p>
+                  USDC: <span className="font-semibold">{usdcBalance}</span>
+                </p>
+              )}
               {gbplBalance !== null && (
-                <p className="text-lg">
+                <p>
                   GBPL: <span className="font-semibold">{gbplBalance}</span>
                 </p>
               )}
