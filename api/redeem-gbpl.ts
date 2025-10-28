@@ -53,8 +53,15 @@ export default async function handler(
       return;
     }
 
+    // Sanitize signature to prevent injection
+    const sanitizedSignature = signature.replace(/[^a-zA-Z0-9+/=]/g, "");
+    if (sanitizedSignature !== signature) {
+      response.status(400).json({ error: "Invalid signature format" });
+      return;
+    }
+
     // Check if this signature has already been processed
-    const processed = await redis.get(`processed_redeem:${signature}`);
+    const processed = await redis.get(`processed_redeem:${sanitizedSignature}`);
     if (processed) {
       response.status(200).json({
         confirmed: true,
@@ -86,7 +93,7 @@ export default async function handler(
       (gbplAmountScaled * priceScaled) / BigInt(10 ** gbplDecimals);
 
     // Verify the actual GBPL transfer amount by checking the transaction
-    const signatureObj = signature as Signature;
+    const signatureObj = sanitizedSignature as Signature;
 
     // Get transaction details to verify actual transfer amount
     const txDetail = await rpc
@@ -222,7 +229,10 @@ export default async function handler(
     );
 
     // Mark this signature as processed in Redis (no expiration)
-    await redis.set(`processed_redeem:${signature}`, Date.now().toString());
+    await redis.set(
+      `processed_redeem:${sanitizedSignature}`,
+      Date.now().toString(),
+    );
 
     await sendAndConfirmTransactionFactory({
       rpc,
