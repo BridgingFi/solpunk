@@ -1,14 +1,9 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
 import { Button } from "@heroui/button";
-import {
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownSection,
-  DropdownTrigger,
-} from "@heroui/dropdown";
+import { Modal, ModalContent, ModalBody, useDisclosure } from "@heroui/modal";
+import { Listbox, ListboxItem } from "@heroui/listbox";
 import { Image } from "@heroui/image";
 import { Spinner } from "@heroui/spinner";
 import {
@@ -17,7 +12,7 @@ import {
   type UiWallet,
   type UiWalletAccount,
 } from "@wallet-standard/react";
-import { NavArrowDown, LogOut, Wallet } from "iconoir-react";
+import { LogOut, Wallet } from "iconoir-react";
 import { addToast } from "@heroui/toast";
 
 import { useSolana } from "@/components/solana-provider";
@@ -111,7 +106,7 @@ export function WalletConnectButton() {
     wallets,
   } = useSolana();
 
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { isOpen, onOpen, onClose } = useDisclosure();
   const walletRefs = useRef(
     new Map<string, React.RefObject<WalletConnectRef>>(),
   );
@@ -119,34 +114,11 @@ export function WalletConnectButton() {
     current: null,
   });
 
-  const triggerButton =
-    wallets.length === 0 ? (
-      <Button
-        isDisabled
-        className="min-w-[140px] justify-between"
-        startContent={<Wallet className="mr-2 h-4 w-4" />}
-        variant="bordered"
-      >
-        No wallets detected
-      </Button>
-    ) : (
-      <Button
-        className="min-w-[140px] justify-between font-mono"
-        endContent={<NavArrowDown className="ml-2 h-4 w-4" />}
-        startContent={
-          isConnected && selectedWallet && selectedAccount ? (
-            <WalletIcon className="h-4 w-4" wallet={selectedWallet} />
-          ) : (
-            <Wallet className="h-4 w-4" />
-          )
-        }
-        variant="bordered"
-      >
-        {isConnected && selectedWallet && selectedAccount
-          ? truncateAddress(selectedAccount.address)
-          : "Connect Wallet"}
-      </Button>
-    );
+  const handleButtonClick = () => {
+    if (!isConnected) {
+      onOpen();
+    }
+  };
 
   const handleWalletConnect = async (
     wallet: UiWallet,
@@ -163,7 +135,7 @@ export function WalletConnectButton() {
         const account = accounts[0];
 
         setWalletAndAccount(wallet, account);
-        setDropdownOpen(false);
+        onClose();
       }
     } catch (err) {
       addToast({
@@ -183,7 +155,7 @@ export function WalletConnectButton() {
     try {
       await impl.disconnect();
       setWalletAndAccount(null, null);
-      setDropdownOpen(false);
+      onClose();
     } catch (err) {
       addToast({
         title: "Failed to disconnect wallet",
@@ -194,59 +166,101 @@ export function WalletConnectButton() {
   };
 
   return (
-    <Dropdown
-      isOpen={dropdownOpen}
-      placement="bottom-end"
-      onOpenChange={setDropdownOpen}
-    >
-      <DropdownTrigger>{triggerButton}</DropdownTrigger>
-      <DropdownMenu aria-label="Wallet menu">
-        {!isConnected ? (
-          <DropdownSection
-            showDivider
-            items={wallets}
-            title="Available Wallets"
-          >
-            {(wallet) => {
-              // Get or create ref for this wallet
-              let r = walletRefs.current.get(wallet.name);
+    <>
+      {wallets.length === 0 ? (
+        <Button
+          isDisabled
+          className="w-full py-4 text-lg font-semibold"
+          color="primary"
+          startContent={<Wallet className="mr-2 h-5 w-5" />}
+          variant="solid"
+        >
+          No wallets detected
+        </Button>
+      ) : (
+        <Button
+          className={`w-full py-4 text-lg font-semibold ${
+            isConnected && selectedWallet && selectedAccount
+              ? "justify-between font-mono"
+              : ""
+          }`}
+          color="primary"
+          startContent={
+            isConnected && selectedWallet && selectedAccount ? (
+              <WalletIcon className="h-5 w-5" wallet={selectedWallet} />
+            ) : (
+              <Wallet className="mr-2 h-5 w-5" />
+            )
+          }
+          variant={
+            isConnected && selectedWallet && selectedAccount
+              ? "bordered"
+              : "solid"
+          }
+          onPress={handleButtonClick}
+        >
+          {isConnected && selectedWallet && selectedAccount
+            ? truncateAddress(selectedAccount.address)
+            : "Connect wallet"}
+        </Button>
+      )}
 
-              if (!r) {
-                r = { current: null };
-                walletRefs.current.set(wallet.name, r);
-              }
+      <Modal isOpen={isOpen} placement="center" onClose={onClose}>
+        <ModalContent>
+          {() => (
+            <ModalBody className="py-6">
+              {!isConnected ? (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold mb-2">
+                    Available Wallets
+                  </h3>
+                  <Listbox aria-label="Available Wallets">
+                    {wallets.map((wallet: UiWallet) => {
+                      // Get or create ref for this wallet
+                      let r = walletRefs.current.get(wallet.name);
 
-              return (
-                <DropdownItem
-                  key={wallet.name}
-                  startContent={
-                    <WalletIconWithConnect ref={r} wallet={wallet} />
-                  }
-                  onPress={() => handleWalletConnect(wallet, r)}
-                >
-                  {wallet.name}
-                </DropdownItem>
-              );
-            }}
-          </DropdownSection>
-        ) : selectedWallet && selectedAccount ? (
-          <>
-            <DropdownItem
-              key="disconnect"
-              className="text-danger"
-              startContent={
-                <WalletDisconnectIcon
-                  ref={disconnectRef.current}
-                  wallet={selectedWallet}
-                />
-              }
-              onPress={handleDisconnect}
-            >
-              Disconnect
-            </DropdownItem>
-          </>
-        ) : null}
-      </DropdownMenu>
-    </Dropdown>
+                      if (!r) {
+                        r = { current: null };
+                        walletRefs.current.set(wallet.name, r);
+                      }
+
+                      return (
+                        <ListboxItem
+                          key={wallet.name}
+                          startContent={
+                            <WalletIconWithConnect ref={r} wallet={wallet} />
+                          }
+                          onClick={() => handleWalletConnect(wallet, r)}
+                        >
+                          {wallet.name}
+                        </ListboxItem>
+                      );
+                    })}
+                  </Listbox>
+                </div>
+              ) : selectedWallet && selectedAccount ? (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold mb-2">
+                    Wallet Connected
+                  </h3>
+                  <ListboxItem
+                    className="text-danger"
+                    startContent={
+                      <WalletDisconnectIcon
+                        ref={disconnectRef.current}
+                        wallet={selectedWallet}
+                      />
+                    }
+                    onClick={handleDisconnect}
+                  >
+                    Disconnect
+                  </ListboxItem>
+                </div>
+              ) : null}
+            </ModalBody>
+          )}
+        </ModalContent>
+      </Modal>
+    </>
   );
 }
