@@ -36,7 +36,7 @@ BridgingFi is an RWA (Real World Asset) protocol that brings property-backed len
 
 - **Dual Staking**: Stake GBPL tokens and lock BTC for enhanced yields
 - **HTLC Implementation**: Uses Hash Time-Locked Contracts for secure BTC locking
-- **Cross-chain Security**: BTC remains on Bitcoin network, controlled via cryptographic preimage
+- **Cross-chain Security**: BTC remains on Bitcoin network, controlled via cryptographic preimage reveal
 - **Time Locks**: Supports 3-month and 6-month lock periods
 - **Bonus APR**: Additional +2% APR for dual staking participants
 - **Risk Management**: Clear risk management rules for early redemption
@@ -47,8 +47,8 @@ BridgingFi is an RWA (Real World Asset) protocol that brings property-backed len
 2. **BTC Locking**: Lock Bitcoin using HTLC for the selected time period
 3. **Enhanced Yields**: Earn base APR + 2% bonus APR for dual participation
 4. **Maturity**: Both GBPL and BTC unlock automatically at maturity
-5. **Early Redemption**: GBPL holders can redeem early (loses bonus APR, BTC unlocks immediately)
-6. **Secure Release**: BTC automatically unlocks after time lock expires
+5. **Early Redemption**: GBPL holders can redeem early (loses bonus APR). When GBPL Staker redeems early, Coordinator releases preimage `x` to BTC Locker, enabling BTC Locker to unlock BTC immediately using the preimage
+6. **Secure Release**: BTC unlocks automatically after time lock expires (maturity path), or can be unlocked early using preimage `x` when GBPL Staker redeems early
 
 ## Technical Architecture
 
@@ -96,7 +96,7 @@ sequenceDiagram
     participant U as User
     participant W as Wallet
     participant S as Solana
-    participant P as Protocol
+    participant P as BridgingFi
 
     U->>W: Connect Solana Wallet
     U->>P: Purchase GBPL with USDC
@@ -113,29 +113,115 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant U as GBPL Staker
-    participant L as BTC Provider
-    participant S as BridgingFi
-    participant B as Bitcoin Network
+    participant L as BTC Locker
+    participant S as BridgingFi Coordinator
+    participant K as State Store
     participant W as Bitcoin Wallet
+    participant B as Bitcoin Network
 
-    U->>S: Stake GBPL Tokens
-    S->>S: Create Staking Position
-    L->>W: Connect Bitcoin Wallet
-    W->>B: Generate HTLC (3/6 months)
-    L->>S: Submit BTC Lock Proof
-    S->>B: Finish HTLC and Confirm Locking
-    Note over U,S: Earn Base APR + 2% Bonus
+    rect rgb(240,248,255)
+    note right of S: Phase 1: GBPL Staking
+    U->>S: Stake GBPL request
+    S->>S: Generate preimage x
+    S->>S: Compute h = SHA256(x)
+    S->>K: Reserve/lock GBPL position (mark as pending BTC deposit)
+    S->>U: Confirm GBPL locked
+    end
+
+    rect rgb(245,255,245)
+    note right of S: Phase 2: Initial BTC Deposit
+    S-->>L: Share hash h (for BTC early unlock)
+    L->>S: Exchange pubkeys for initial deposit script
+    S-->>L: Share coordinator pubkey
+    L->>W: Send BTC to initial deposit address
+    Note right of W: Script paths: Short timeout refund OR 2/2 multisig
+    W->>B: Broadcast initial deposit tx
+    L->>S: Submit txid/outpoint
+    S->>B: Watch 1 confirmation
+    B-->>S: 1 conf reached
+    break Short timeout refund path
+        Note over L,S: If GBPL not locked, L can refund via short timeout
+    end
+    end
+
+    rect rgb(255,248,240)
+    note right of S: Phase 3: Lock Request
+    L->>S: Request GBPL lock confirmation
+    S->>S: Confirm GBPL locked
+    L->>L: Build pre-signed PSBT
+    Note right of L: Input: initial deposit output<br/>Output: yield amount to lock address<br/>Paths: Maturity OR single sig + hashlock h
+    L->>S: Submit pre-signed PSBT
+    S->>S: Validate PSBT
+    S->>S: Add yield UTXOs as additional inputs
+    S->>W: Complete funding tx with all inputs
+    W->>B: Broadcast fully-signed funding tx
+    S->>B: Watch 1 confirmation
+    B-->>S: 1 conf reached
+    Note over L,S: BTC locked, x will be released when GBPL Staker redeems early
+    end
+
+    rect rgb(255,245,245)
+    note right of S: Phase 4: Settlement
     alt Normal Maturity
-        S->>U: Release GBPL + Yield
-        S->>W: Provide Yield
-        W->>B: Unlock BTC
+        L->>L: Validate lock UTXO unspent and maturity reached
+        L->>W: Spend lock UTXO via maturity path (single signature)
+        W->>B: Broadcast maturity settlement tx
+        B-->>L: Confirmed
+        S->>U: Release GBPL + base yield
     else Early Redemption
-        U->>S: Redeem GBPL Early
-        S->>U: Return GBPL (No Bonus)
-        S->>W: Release Preimage
-        W->>B: Unlock BTC
+        U->>S: Redeem GBPL early (no bonus)
+        S->>S: Release preimage x
+        S->>U: Release GBPL (bonus forfeited)
+        S-->>L: Provide preimage x (atomic exchange)
+        L->>L: Verify H(x) = h
+        L->>W: Spend lock UTXO via early path (single sig + preimage x)
+        Note right of W: Bitcoin script verifies H(x) = h
+        W->>B: Broadcast early settlement tx
+        B-->>L: Confirmed
+    end
     end
 ```
+
+### HTLC — Technical Design
+
+This hackathon phase uses a centralized coordinator to manage a standard HTLC (Hash Time-Locked Contract) flow without a Solana program. The design uses pre-signed PSBTs to avoid wallet conflicts, with dual-path scripts enabling both time-locked refunds and hashlock-based early unlocks. BTC is locked using standard Bitcoin HTLC scripts with hashlock and timelock paths, following the classic atomic swap pattern described in [Bitcoin Wiki](https://en.bitcoin.it/wiki/Atomic_swap). The atomic exchange is achieved through preimage reveal: Coordinator generates preimage `x` and shares hash `h = SHA256(x)` with BTC Locker in Phase 2. When GBPL Staker requests early redemption in Phase 4, Coordinator releases preimage `x` to BTC Locker, enabling BTC Locker to unlock BTC early. In the future, this can be upgraded to a decentralized Solana program and LN-style channel implementation for stronger security guarantees and reduced interaction rounds.
+
+#### Entities
+
+- BTC Locker: The user who locks BTC into an HTLC
+- GBPL Staker: The user who stakes GBPL for enhanced yield (can be the same as Locker)
+- Centralized Coordinator (BridgingFi): Coordination layer for the hackathon
+- State Store: Durable storage for intents and transitions
+- Bitcoin Wallet/Network: On-chain settlement for BTC
+
+#### Notation
+
+- x: 32-byte preimage generated by BridgingFi Coordinator (for early unlock)
+- h = SHA256(x): Hash for Bitcoin script hashlock verification (lock address early unlock path)
+- T_short: Short timeout for initial deposit refund (if GBPL not locked)
+- T_maturity: Absolute CLTV locktime at 3 or 6 months for lock address
+- Confirmation: 1 confirmation (demo)
+- Initial Deposit UTXO: BTC sent to address with short timeout OR 2/2 multisig paths
+- Lock UTXO: Final locked BTC with yield amount, paths: maturity OR single sig + preimage x
+
+#### Security Rationale
+
+This design ensures security through:
+
+1. **Atomic exchange via preimage reveal**: Following the classic atomic swap pattern ([Bitcoin Wiki](https://en.bitcoin.it/wiki/Atomic_swap)), Coordinator generates preimage `x` and shares hash `h = SHA256(x)` with BTC Locker in Phase 2. When GBPL Staker requests early redemption in Phase 4, Coordinator releases preimage `x` to BTC Locker, enabling BTC Locker to unlock BTC early. This ensures atomic exchange: when GBPL Staker redeems early, Coordinator must release `x` for BTC Locker to unlock funds. If GBPL Staker does not redeem early, BTC Locker can unlock via maturity path after timelock expires.
+
+2. **Bitcoin script hashlock verification**: SHA256 hash `h = SHA256(x)` is used for Bitcoin HTLC script hashlock verification. Bitcoin script verifies `H(x) = h` before allowing fund withdrawal, ensuring only the party with the correct preimage can unlock funds.
+
+3. **Dual-path scripts with timelocks**: Initial deposit script provides a short timeout refund path if GBPL staking fails, protecting BTC Locker. Lock address script provides both maturity path (single signature after CLTV) and early unlock path (single signature + preimage x), giving BTC Locker control while enabling early redemption when GBPL Staker requests it.
+
+4. **Verification gates**: Preimage is verified via hash check (`H(x) = h`) for Bitcoin script validation, ensuring data integrity and atomic exchange.
+
+#### Future Upgrades
+
+This centralized coordinator approach can be upgraded to:
+
+- **Decentralized Solana Program**: Enforce HTLC script verification and atomic exchange on-chain for stronger security guarantees
+- **LN-style Channel Implementation**: Leverage commitment channels and penalty mechanisms similar to Lightning Network for reduced interaction rounds and improved scalability, while maintaining the dual staking functionality
 
 ## Project Structure
 

@@ -1,135 +1,145 @@
-import { useMemo, useState } from "react";
-import { Card, CardBody } from "@heroui/card";
-import { Button } from "@heroui/button";
+import type { StakeApiResponse, StakeRecord } from "../../lib/stake-types";
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { BitcoinWalletConnectors } from "@dynamic-labs/bitcoin";
+import { Button } from "@heroui/button";
+import { Card, CardBody } from "@heroui/card";
 
-import DefaultLayout from "@/layouts/default";
-import { StakeGBPLModal } from "@/components/modals/stake-gbpl-modal";
+import { TOKEN_CONFIG } from "../../lib/config";
+
+import { SolanaProvider, useSolana } from "@/components/solana-provider";
 import { LockBTCModal } from "@/components/modals/lock-btc-modal";
+import { StakeGBPLModal } from "@/components/modals/stake-gbpl-modal";
 import {
   AwaitingBTCList,
+  type AwaitingBTCListRef,
   type AwaitingStake,
 } from "@/components/staking/awaiting-btc-list";
-import {
-  MyPositionsList,
-  type MyPosition,
-} from "@/components/staking/my-positions-list";
+import { MyPositionsList } from "@/components/staking/my-positions-list";
+import DefaultLayout from "@/layouts/default";
 
 function BTCPageContent() {
-  // Mock state
-  const [awaiting, setAwaiting] = useState<AwaitingStake[]>([
-    {
-      id: "G-1001",
-      owner: "0xA1...B3",
-      gbplAmount: 1200,
-      createdAt: new Date(Date.now() - 86400000).toISOString(),
-      aprBase: 8.5,
-      aprBonus: 2,
-    },
-    {
-      id: "G-1002",
-      owner: "0xC9...D2",
-      gbplAmount: 3500,
-      createdAt: new Date(Date.now() - 3600 * 1000 * 12).toISOString(),
-      aprBase: 8.5,
-      aprBonus: 2,
-    },
-  ]);
-  const [myPositions, setMyPositions] = useState<MyPosition[]>([
-    {
-      id: "P-5001",
-      type: "GBPL",
-      amount: 1000,
-      status: "active",
-      maturity: new Date(Date.now() + 90 * 86400000).toISOString(),
-      bonusApr: 2,
-    },
-    {
-      id: "P-7001",
-      type: "BTC",
-      amount: 0.12,
-      status: "active",
-      maturity: new Date(Date.now() + 180 * 86400000).toISOString(),
-      bonusApr: 2,
-    },
-  ]);
+  const { selectedAccount } = useSolana();
+  const awaitingBTCListRef = useRef<AwaitingBTCListRef>(null);
+  const [selectedStake, setSelectedStake] = useState<AwaitingStake | null>(
+    null,
+  );
+  const [userStakes, setUserStakes] = useState<StakeRecord[]>([]);
+  const [totalGbplStakedRaw, setTotalGbplStakedRaw] = useState<string | null>(
+    null,
+  );
+  const [pendingStakes, setPendingStakes] = useState<StakeRecord[]>([]);
+  const [isLoadingAwaiting, setIsLoadingAwaiting] = useState(true);
+  const [awaitingError, setAwaitingError] = useState<string | null>(null);
 
-  const totalGbplStaked = useMemo(
-    () =>
-      awaiting.reduce((sum, a) => sum + a.gbplAmount, 0) +
-      myPositions
-        .filter((p) => p.type === "GBPL")
-        .reduce((s, p) => s + p.amount, 0),
-    [awaiting, myPositions],
-  );
-  const totalBtcLocked = useMemo(
-    () =>
-      myPositions
-        .filter((p) => p.type === "BTC")
-        .reduce((s, p) => s + p.amount, 0),
-    [myPositions],
-  );
+  // Fetch awaiting stakes and total GBPL staked from API (combined call)
+  // If wallet is connected, also fetch user's stakes in the same call
+  const fetchAwaitingStakesAndTotal = async () => {
+    try {
+      setIsLoadingAwaiting(true);
+      setAwaitingError(null);
+
+      // Build URL with userAddress if wallet is connected
+      const url = selectedAccount?.address
+        ? `/api/stake-gbpl?userAddress=${encodeURIComponent(selectedAccount.address)}`
+        : "/api/stake-gbpl";
+
+      const response = await fetch(url);
+      const data = (await response.json()) as StakeApiResponse;
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to fetch pending stakes");
+      }
+
+      // Update pending stakes
+      setPendingStakes(data.stakes);
+
+      // Update total GBPL staked if provided
+      if (data.totalGbplStaked) {
+        setTotalGbplStakedRaw(data.totalGbplStaked);
+      }
+
+      // Update user's stakes if provided (when wallet is connected)
+      if (data.userStakes) {
+        setUserStakes(data.userStakes);
+      } else {
+        // Clear user stakes if wallet is disconnected
+        setUserStakes([]);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Error fetching awaiting stakes:", err);
+      setAwaitingError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setIsLoadingAwaiting(false);
+    }
+  };
+
+  // Fetch awaiting stakes and total on mount and when wallet changes
+  useEffect(() => {
+    fetchAwaitingStakesAndTotal();
+  }, [selectedAccount?.address]);
+
+  // Convert userStakes to MyPosition format for display
+  const myPositionsFromApi = useMemo(() => {
+    return userStakes.map((stake) => {
+      const gbplAmount =
+        parseFloat(stake.gbplAmountRaw) / 10 ** TOKEN_CONFIG.GBPL.DECIMALS;
+      const aprBonus = stake.stakePeriod === "6m" ? 3 : 2;
+      const status: "active" | "awaitingLock" | "matured" =
+        stake.htlcStatus === "waiting" ? "awaitingLock" : "active";
+
+      return {
+        id: stake.id,
+        type: "GBPL" as const,
+        amount: gbplAmount,
+        status,
+        maturity: stake.maturityDate,
+        bonusApr: aprBonus,
+      };
+    });
+  }, [userStakes]);
+
+  // Calculate total GBPL staked from cached API value (all users, all statuses)
+  const totalGbplStaked = useMemo(() => {
+    if (totalGbplStakedRaw === null) {
+      return null; // Still loading
+    }
+
+    // Convert raw value (with 9 decimals) to display value
+    const totalRaw = BigInt(totalGbplStakedRaw || "0");
+    const totalDisplay = Number(totalRaw) / 10 ** TOKEN_CONFIG.GBPL.DECIMALS;
+
+    return totalDisplay;
+  }, [totalGbplStakedRaw]);
+  const totalBtcLocked = useMemo(() => {
+    // BTC locks are not tracked in API yet, return 0 for now
+    // TODO: Implement BTC lock tracking in API
+    return 0;
+  }, []);
 
   // Stake modal state
   const [stakeOpen, setStakeOpen] = useState(false);
   const [lockOpen, setLockOpen] = useState(false);
-  const [selectedStake, setSelectedStake] = useState<AwaitingStake | null>(
-    null,
-  );
 
-  const handleCreateStake = (amount: number) => {
-    const newItem: AwaitingStake = {
-      id: `G-${Math.floor(Math.random() * 9000 + 1000)}`,
-      owner: "me",
-      gbplAmount: amount,
-      createdAt: new Date().toISOString(),
-      aprBase: 8.5,
-      aprBonus: 2,
-    };
-
-    setAwaiting((prev) => [newItem, ...prev]);
+  const handleCreateStake = async (_amount: number, _period: string) => {
+    // Refresh awaiting stakes, total GBPL staked, and user stakes (combined call)
+    await fetchAwaitingStakesAndTotal();
   };
 
-  const handleLockBtc = (id: string) => {
-    const item = awaiting.find((a) => a.id === id);
-
-    if (!item) return;
-
-    setSelectedStake(item);
+  const handleLockBtc = (stake: AwaitingStake) => {
+    setSelectedStake(stake);
     setLockOpen(true);
   };
 
-  const handleConfirmLock = (btcAmount: number, period: string) => {
+  const handleConfirmLock = async (_btcAmount: number, _period: string) => {
     if (!selectedStake) return;
 
-    const days = period === "6m" ? 180 : 90;
+    // Refresh awaiting stakes and user stakes to remove the locked stake
+    await fetchAwaitingStakesAndTotal();
 
-    setAwaiting((prev) => prev.filter((a) => a.id !== selectedStake.id));
-    setMyPositions((prev) => [
-      ...prev,
-      {
-        id: `P-${selectedStake.id}-G`,
-        type: "GBPL",
-        amount: selectedStake.gbplAmount,
-        status: "active",
-        maturity: new Date(Date.now() + days * 86400000).toISOString(),
-        bonusApr: selectedStake.aprBonus,
-      },
-      {
-        id: `P-${selectedStake.id}-B`,
-        type: "BTC",
-        amount: btcAmount,
-        status: "active",
-        maturity: new Date(Date.now() + days * 86400000).toISOString(),
-        bonusApr: selectedStake.aprBonus,
-      },
-    ]);
     setSelectedStake(null);
-  };
-
-  const handleRedeem = (id: string) => {
-    setMyPositions((prev) => prev.filter((p) => p.id !== id));
   };
 
   return (
@@ -172,7 +182,10 @@ function BTCPageContent() {
                         Total GBPL Staked
                       </p>
                       <p className="text-xl md:text-2xl font-bold">
-                        {totalGbplStaked.toLocaleString()} GBPL
+                        {totalGbplStaked === null
+                          ? "---"
+                          : totalGbplStaked.toLocaleString()}{" "}
+                        GBPL
                       </p>
                     </div>
                     <div className="text-center lg:text-left">
@@ -203,11 +216,20 @@ function BTCPageContent() {
           {/* Awaiting + Positions (responsive two-column) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mb-8">
             <AwaitingBTCList
-              awaiting={awaiting}
+              ref={awaitingBTCListRef}
+              error={awaitingError}
+              isLoading={isLoadingAwaiting}
+              pendingStakes={pendingStakes}
               onLockBTC={handleLockBtc}
+              onRefresh={fetchAwaitingStakesAndTotal}
               onStakeGBPL={() => setStakeOpen(true)}
             />
-            <MyPositionsList positions={myPositions} onRedeem={handleRedeem} />
+            <MyPositionsList
+              error={awaitingError}
+              isLoading={isLoadingAwaiting}
+              positions={myPositionsFromApi}
+              onRedeemSuccess={fetchAwaitingStakesAndTotal}
+            />
           </div>
 
           {/* Risk Management */}
@@ -278,7 +300,9 @@ export default function StakePage() {
       }}
       theme={"dark"}
     >
-      <BTCPageContent />
+      <SolanaProvider>
+        <BTCPageContent />
+      </SolanaProvider>
     </DynamicContextProvider>
   );
 }
