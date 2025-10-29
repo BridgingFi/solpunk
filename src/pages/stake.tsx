@@ -142,7 +142,7 @@ function BTCPageContent() {
               <div className="flex flex-col gap-6 md:gap-8">
                 {/* Header with icons and title */}
                 <div className="flex items-center gap-4">
-                  <div className="relative w-14 h-14 md:w-16 md:h-16 flex-shrink-0">
+                  <div className="relative w-17 h-14 md:w-20 md:h-16 flex-shrink-0">
                     <img
                       alt="GBPL"
                       className="w-10 h-10 md:w-12 md:h-12"
@@ -150,7 +150,7 @@ function BTCPageContent() {
                     />
                     <img
                       alt="BTC"
-                      className="absolute left-7 top-3 md:left-9 md:top-4 w-10 h-10 md:w-12 md:h-12"
+                      className="absolute left-7 top-3 md:left-8 md:top-4 w-10 h-10 md:w-12 md:h-12"
                       src="/tokens/btc.svg"
                     />
                   </div>

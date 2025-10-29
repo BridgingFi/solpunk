@@ -7,6 +7,7 @@
   "dependencies": {
     "@dynamic-labs/bitcoin": "^4.40.1",
     "@dynamic-labs/sdk-react-core": "^4.40.1",
+    "@fontsource/inter": "^5.2.8",
     "@heroui/button": "2.2.27",
     "@heroui/card": "^2.2.25",
     "@heroui/divider": "^2.2.20",
@@ -17,6 +18,7 @@
     "@heroui/listbox": "^2.3.26",
     "@heroui/modal": "^2.2.24",
     "@heroui/navbar": "2.2.25",
+    "@heroui/radio": "^2.3.27",
     "@heroui/system": "2.4.23",
     "@heroui/toast": "^2.0.17",
     "@react-aria/visually-hidden": "3.8.28",

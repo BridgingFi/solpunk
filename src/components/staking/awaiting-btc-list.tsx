@@ -27,14 +27,6 @@ export function AwaitingBTCList({
       <CardBody className="p-6 md:p-8">
         <div className="flex items-center justify-between mb-6">
           <h4 className="text-xl md:text-2xl font-bold">Awaiting BTC Lock</h4>
-          <Button
-            color="primary"
-            size="sm"
-            variant="flat"
-            onPress={onStakeGBPL}
-          >
-            Stake GBPL
-          </Button>
         </div>
         {awaiting.length === 0 ? (
           <div className="text-center py-8">
