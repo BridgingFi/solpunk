@@ -97,7 +97,11 @@ const WalletDisconnectIcon = forwardRef<
   );
 });
 
-export function WalletConnectButton() {
+export function WalletConnectButton({
+  fullWidth = true,
+}: {
+  fullWidth?: boolean;
+}) {
   const {
     isConnected,
     selectedAccount,
@@ -170,7 +174,7 @@ export function WalletConnectButton() {
       {wallets.length === 0 ? (
         <Button
           isDisabled
-          className="w-full py-4 text-lg font-semibold"
+          className={`${fullWidth ? "w-full py-4 text-lg font-semibold" : "px-3 py-2 text-sm"}`}
           color="primary"
           startContent={<Wallet className="mr-2 h-5 w-5" />}
           variant="solid"
@@ -179,7 +183,7 @@ export function WalletConnectButton() {
         </Button>
       ) : (
         <Button
-          className={`w-full py-4 text-lg font-semibold ${
+          className={`${fullWidth ? "w-full py-4 text-lg font-semibold" : "px-3 py-2 text-sm"} ${
             isConnected && selectedWallet && selectedAccount
               ? "justify-between font-mono"
               : ""

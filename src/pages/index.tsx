@@ -6,6 +6,7 @@ import {
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { addToast } from "@heroui/toast";
 import { Card, CardBody } from "@heroui/card";
+import { Divider } from "@heroui/divider";
 import { Address } from "@solana/kit";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
@@ -13,9 +14,9 @@ import { Image } from "@heroui/image";
 import { useDisclosure } from "@heroui/modal";
 
 import DefaultLayout from "@/layouts/default";
-import { WalletConnectButton } from "@/components/solana-connect-button";
-import { RedeemModal } from "@/components/redeem-modal";
-import { PurchaseModal } from "@/components/purchase-modal";
+import { WalletConnectButton } from "@/components/wallet/solana-connect-button";
+import { RedeemModal } from "@/components/modals/redeem-modal";
+import { PurchaseModal } from "@/components/modals/purchase-modal";
 import { useSolana } from "@/components/solana-provider";
 
 // GBPL Token Mint Address (should be set from env or config)
@@ -358,13 +359,7 @@ export default function IndexPage() {
                   />
                 </div>
 
-                {/* Divider - only show when connected */}
-                {isConnected && selectedAccount && (
-                  <div
-                    className="h-px mb-4"
-                    style={{ background: "#434659" }}
-                  ></div>
-                )}
+                <Divider className="mb-4" />
 
                 {/* Available Balance */}
                 <div className="text-sm text-default-500 mb-4">
