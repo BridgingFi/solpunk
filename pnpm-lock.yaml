@@ -53,6 +53,9 @@ importers:
       '@heroui/system':
         specifier: 2.4.23
         version: 2.4.23(@heroui/theme@2.4.23(tailwindcss@4.1.11))(framer-motion@11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@heroui/theme':
+        specifier: ^2.4.23
+        version: 2.4.23(tailwindcss@4.1.11)
       '@heroui/toast':
         specifier: ^2.0.17
         version: 2.0.17(@heroui/system@2.4.23(@heroui/theme@2.4.23(tailwindcss@4.1.11))(framer-motion@11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@heroui/theme@2.4.23(tailwindcss@4.1.11))(framer-motion@11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

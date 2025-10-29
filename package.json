@@ -20,6 +20,7 @@
     "@heroui/navbar": "2.2.25",
     "@heroui/radio": "^2.3.27",
     "@heroui/system": "2.4.23",
+    "@heroui/theme": "^2.4.23",
     "@heroui/toast": "^2.0.17",
     "@react-aria/visually-hidden": "3.8.28",
     "@react-types/shared": "3.32.1",
