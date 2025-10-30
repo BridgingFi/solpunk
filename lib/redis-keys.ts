@@ -11,3 +11,7 @@ export const userStakesSetKey = (userAddress: string) =>
   `stake:user:${userAddress}`;
 export const processedRedeemKey = (signature: string) =>
   `processed_redeem:${signature}`;
+
+// Map of BTC deposit txids per stake, keyed by btc pubkey (hex)
+export const stakeBtcDepositTxMapKey = (stakeId: string) =>
+  `stake:btc-deposit-tx:${stakeId}`;

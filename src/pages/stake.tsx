@@ -282,6 +282,7 @@ function BTCPageContent() {
         <LockBTCModal
           gbplAmount={selectedStake.gbplAmount}
           isOpen={lockOpen}
+          stakeId={selectedStake.id}
           stakePeriod={selectedStake.stakePeriod}
           onLock={handleConfirmLock}
           onOpenChange={setLockOpen}
@@ -302,6 +303,14 @@ export default function StakePage() {
         initialAuthenticationMode: "connect-only",
         enableVisitTrackingOnConnectOnly: false,
         walletConnectors: [BitcoinWalletConnectors],
+        walletsFilter: (wallets) =>
+          wallets.filter(
+            (wallet) =>
+              // No testnet, exclude these wallets
+              !["okxwalletbtc", "phantombtc", "magicedenbtc"].includes(
+                wallet.key,
+              ),
+          ),
         appName: "BridgingFi",
         appLogoUrl: "/logo.png",
       }}

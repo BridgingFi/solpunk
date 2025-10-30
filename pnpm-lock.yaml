@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@bitcoinerlab/secp256k1':
+        specifier: ^1.2.0
+        version: 1.2.0
       '@dynamic-labs/bitcoin':
         specifier: ^4.40.1
         version: 4.41.0(debug@4.4.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.3)
@@ -20,12 +23,21 @@ importers:
       '@heroui/react':
         specifier: ^2.4.23
         version: 2.8.5(@types/react@18.3.3)(framer-motion@11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwindcss@4.1.11)
+      '@noble/hashes':
+        specifier: ^2.0.1
+        version: 2.0.1
       '@react-aria/visually-hidden':
         specifier: 3.8.28
         version: 3.8.28(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@react-types/shared':
         specifier: 3.32.1
         version: 3.32.1(react@18.3.1)
+      '@scure/base':
+        specifier: ^2.0.0
+        version: 2.0.0
+      '@scure/btc-signer':
+        specifier: ^2.0.1
+        version: 2.0.1
       '@solana-program/memo':
         specifier: ^0.9.0
         version: 0.9.0(@solana/kit@4.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.6.3)(ws@8.18.3))
@@ -59,6 +71,9 @@ importers:
       '@wallet-standard/react':
         specifier: ^1.0.1
         version: 1.0.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      bip32:
+        specifier: ^5.0.0
+        version: 5.0.0(typescript@5.6.3)
       bitcoin-address-validation:
         specifier: ^3.0.0
         version: 3.0.0
@@ -268,6 +283,9 @@ packages:
   '@babel/types@7.28.5':
     resolution: {integrity: sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA==}
     engines: {node: '>=6.9.0'}
+
+  '@bitcoinerlab/secp256k1@1.2.0':
+    resolution: {integrity: sha512-jeujZSzb3JOZfmJYI0ph1PVpCRV5oaexCgy+RvCXV8XlY+XFB/2n3WOcvBsKLsOw78KYgnQrQWb2HrKE4be88Q==}
 
   '@btckit/types@0.0.19':
     resolution: {integrity: sha512-APoOfYSg9SRR4CMXL606IDtpgh+ZD3kS/+iY0BkUALD6HvXo2pVw20L5YYIc+HrgMcF6WN0TH7TXdVs+Vu+kww==}
@@ -1482,6 +1500,10 @@ packages:
   '@noble/ciphers@0.4.1':
     resolution: {integrity: sha512-QCOA9cgf3Rc33owG0AYBB9wszz+Ul2kramWN8tXG44Gyciud/tbkEqvxRF/IpqQaBpRBNi9f4jdNxqB2CQCIXg==}
 
+  '@noble/curves@1.9.7':
+    resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
+    engines: {node: ^14.21.3 || >=16}
+
   '@noble/curves@2.0.1':
     resolution: {integrity: sha512-vs1Az2OOTBiP4q0pwjW5aF0xp9n4MxVrmkFBxc6EKZc6ddYx5gaZiAsZoq0uRRXWbi3AT/sBqn05eRPtn1JCPw==}
     engines: {node: '>= 20.19.0'}
@@ -2197,6 +2219,15 @@ packages:
 
   '@sats-connect/ui@0.0.7':
     resolution: {integrity: sha512-dq02JxvTSAkfgFzEz4iWDSamm6Dte1omzxK0F1yytRZbIrbjjz1KmlMHM+uuxnFN9+EzHIHNsA4aS2dEDwh0xw==}
+
+  '@scure/base@1.2.6':
+    resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
+
+  '@scure/base@2.0.0':
+    resolution: {integrity: sha512-3E1kpuZginKkek01ovG8krQ0Z44E3DHPjc5S2rjJw9lZn3KSQOs8S7wqikF/AH7iRanHypj85uGyxk0XAyC37w==}
+
+  '@scure/btc-signer@2.0.1':
+    resolution: {integrity: sha512-vk5a/16BbSFZkhh1JIJ0+4H9nceZVo5WzKvJGGWiPp3sQOExeW+L53z3dI6u0adTPoE8ZbL+XEb6hEGzVZSvvQ==}
 
   '@simplewebauthn/browser@13.1.0':
     resolution: {integrity: sha512-WuHZ/PYvyPJ9nxSzgHtOEjogBhwJfC8xzYkPC+rR/+8chl/ft4ngjiK8kSU5HtRJfczupyOh33b25TjYbvwAcg==}
@@ -2994,6 +3025,9 @@ packages:
   base-x@4.0.1:
     resolution: {integrity: sha512-uAZ8x6r6S3aUM9rbHGVOIsR15U/ZSc82b3ymnCPsT45Gk1DDvhDPdIgB5MrhirZWt+5K0EEPQH985kNqZgNPFw==}
 
+  base-x@5.0.1:
+    resolution: {integrity: sha512-M7uio8Zt++eg3jPj+rHMfCC+IuygQHHCOU+IYsVtik6FWjuYpVt/+MRKcgsAMHh8mMFAwnB+Bs+mTrFiXjMzKg==}
+
   base58-js@3.0.3:
     resolution: {integrity: sha512-3hf42BysHnUqmZO7mK6e5X/hs1AvyEJIhdVLbG/Mxn/fhFnhGxOO37mWbMHg1RT4TxqcPKXgqj9/bp1YG0GBXA==}
     engines: {node: '>=16.0.0', npm: '>=7.0.0'}
@@ -3014,6 +3048,10 @@ packages:
   bip174@2.1.1:
     resolution: {integrity: sha512-mdFV5+/v0XyNYXjBS6CQPLo9ekCx4gtKZFnJm5PMto7Fs9hTTDpkkzOB7/FtluRI6JbUUAu+snTYfJRgHLZbZQ==}
     engines: {node: '>=8.0.0'}
+
+  bip32@5.0.0:
+    resolution: {integrity: sha512-h043yQ9n3iU4WZ8KLRpEECMl3j1yx2DQ1kcPlzWg8VZC0PtukbDiyLDKbe6Jm79mL6Tfg+WFuZMYxnzVyr/Hyw==}
+    engines: {node: '>=18.0.0'}
 
   bitcoin-address-validation@3.0.0:
     resolution: {integrity: sha512-R1X1c9EdgjgjTpjshjk5e16TbgF7HYasxBcu7l5ScWMxVs53845vMUg5PvnQ/R/3h8Grly6Y52DgH6/77gazLQ==}
@@ -3043,8 +3081,14 @@ packages:
   bs58@5.0.0:
     resolution: {integrity: sha512-r+ihvQJvahgYT50JD05dyJNKlmmSlMoOGwn1lCcEzanPglg7TxYjioQUYehQ9mAR/+hOSd2jRc/Z2y5UxBymvQ==}
 
+  bs58@6.0.0:
+    resolution: {integrity: sha512-PD0wEnEYg6ijszw/u8s+iI3H17cTymlrwkKhDhPZq+Sokl3AU4htyBFTjAeNAlCCmg0f53g6ih3jATyCKftTfw==}
+
   bs58check@3.0.1:
     resolution: {integrity: sha512-hjuuJvoWEybo7Hn/0xOrczQKKEKD63WguEjlhLExYs2wUBcebDC1jDNK17eEAD2lYfw82d5ASC1d7K3SWszjaQ==}
+
+  bs58check@4.0.0:
+    resolution: {integrity: sha512-FsGDOnFg9aVI9erdriULkd/JjEWONV/lQE5aYziB5PoBsXRind56lh8doIZIc9X4HoxT5x4bLjMWN1/NB8Zp5g==}
 
   buffer-crc32@0.2.13:
     resolution: {integrity: sha512-VO9Ht/+p3SN7SKWqcrgEzjGbRSJYTx+Q1pTQC0wrWqHx0vpJraQ6GtHx8tvcg1rlK1byhU5gccxgOgj7B0TDkQ==}
@@ -4273,6 +4317,10 @@ packages:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
+  micro-packed@0.8.0:
+    resolution: {integrity: sha512-AKb8znIvg9sooythbXzyFeChEY0SkW0C6iXECpy/ls0e5BtwXO45J9wD9SLzBztnS4XmF/5kwZknsq+jyynd/A==}
+    engines: {node: '>= 20.19.0'}
+
   micro@9.3.5-canary.3:
     resolution: {integrity: sha512-viYIo9PefV+w9dvoIBh1gI44Mvx1BOk67B4BpC2QK77qdY0xZF0Q+vWLt/BII6cLkIc8rLmSIcJaB/OrXXKe1g==}
     engines: {node: '>= 8.0.0'}
@@ -5090,6 +5138,10 @@ packages:
   uid-promise@1.0.0:
     resolution: {integrity: sha512-R8375j0qwXyIu/7R0tjdF06/sElHqbmdmWC9M2qQHpEVbvE4I5+38KJI7LUUmQMp7NVq4tKHiBMkT0NFM453Ig==}
 
+  uint8array-tools@0.0.8:
+    resolution: {integrity: sha512-xS6+s8e0Xbx++5/0L+yyexukU7pz//Yg6IHg3BKhXotg1JcYtgxVcUctQ0HxLByiJzpAkNFawz1Nz5Xadzo82g==}
+    engines: {node: '>=14.0.0'}
+
   unbox-primitive@1.1.0:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
     engines: {node: '>= 0.4'}
@@ -5186,6 +5238,14 @@ packages:
 
   v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
+
+  valibot@0.37.0:
+    resolution: {integrity: sha512-FQz52I8RXgFgOHym3XHYSREbNtkgSjF9prvMFH1nBsRyfL6SfCzoT1GuSDTlbsuPubM7/6Kbw0ZMQb8A+V+VsQ==}
+    peerDependencies:
+      typescript: '>=5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   valibot@1.1.0:
     resolution: {integrity: sha512-Nk8lX30Qhu+9txPYTwM0cFlWLdPFsFr6LblzqIySfbZph9+BFsAHsNvHOymEviUepeIW6KFHzpX8TKhbptBXXw==}
@@ -5287,6 +5347,9 @@ packages:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
     hasBin: true
+
+  wif@5.0.0:
+    resolution: {integrity: sha512-iFzrC/9ne740qFbNjTZ2FciSRJlHIXoxqk/Y5EnE08QOXu1WjJyCCswwDTYbohAOEnlCtLaAAQBhyaLRFh2hMA==}
 
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
@@ -5499,6 +5562,10 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@bitcoinerlab/secp256k1@1.2.0':
+    dependencies:
+      '@noble/curves': 1.9.7
 
   '@btckit/types@0.0.19': {}
 
@@ -7196,6 +7263,10 @@ snapshots:
 
   '@noble/ciphers@0.4.1': {}
 
+  '@noble/curves@1.9.7':
+    dependencies:
+      '@noble/hashes': 1.8.0
+
   '@noble/curves@2.0.1':
     dependencies:
       '@noble/hashes': 2.0.1
@@ -8151,6 +8222,17 @@ snapshots:
   '@sats-connect/ui@0.0.6': {}
 
   '@sats-connect/ui@0.0.7': {}
+
+  '@scure/base@1.2.6': {}
+
+  '@scure/base@2.0.0': {}
+
+  '@scure/btc-signer@2.0.1':
+    dependencies:
+      '@noble/curves': 2.0.1
+      '@noble/hashes': 2.0.1
+      '@scure/base': 2.0.0
+      micro-packed: 0.8.0
 
   '@simplewebauthn/browser@13.1.0': {}
 
@@ -9308,6 +9390,8 @@ snapshots:
 
   base-x@4.0.1: {}
 
+  base-x@5.0.1: {}
+
   base58-js@3.0.3: {}
 
   base64-js@1.5.1: {}
@@ -9321,6 +9405,16 @@ snapshots:
       file-uri-to-path: 1.0.0
 
   bip174@2.1.1: {}
+
+  bip32@5.0.0(typescript@5.6.3):
+    dependencies:
+      '@noble/hashes': 1.8.0
+      '@scure/base': 1.2.6
+      uint8array-tools: 0.0.8
+      valibot: 0.37.0(typescript@5.6.3)
+      wif: 5.0.0
+    transitivePeerDependencies:
+      - typescript
 
   bitcoin-address-validation@3.0.0:
     dependencies:
@@ -9364,10 +9458,19 @@ snapshots:
     dependencies:
       base-x: 4.0.1
 
+  bs58@6.0.0:
+    dependencies:
+      base-x: 5.0.1
+
   bs58check@3.0.1:
     dependencies:
       '@noble/hashes': 1.8.0
       bs58: 5.0.0
+
+  bs58check@4.0.0:
+    dependencies:
+      '@noble/hashes': 1.8.0
+      bs58: 6.0.0
 
   buffer-crc32@0.2.13: {}
 
@@ -10670,6 +10773,10 @@ snapshots:
 
   merge2@1.4.1: {}
 
+  micro-packed@0.8.0:
+    dependencies:
+      '@scure/base': 2.0.0
+
   micro@9.3.5-canary.3:
     dependencies:
       arg: 4.1.0
@@ -11545,6 +11652,8 @@ snapshots:
 
   uid-promise@1.0.0: {}
 
+  uint8array-tools@0.0.8: {}
+
   unbox-primitive@1.1.0:
     dependencies:
       call-bound: 1.0.4
@@ -11627,6 +11736,10 @@ snapshots:
   uuid@11.1.0: {}
 
   v8-compile-cache-lib@3.0.1: {}
+
+  valibot@0.37.0(typescript@5.6.3):
+    optionalDependencies:
+      typescript: 5.6.3
 
   valibot@1.1.0(typescript@5.6.3):
     optionalDependencies:
@@ -11745,6 +11858,10 @@ snapshots:
   which@2.0.2:
     dependencies:
       isexe: 2.0.0
+
+  wif@5.0.0:
+    dependencies:
+      bs58check: 4.0.0
 
   word-wrap@1.2.5: {}
 

@@ -14,46 +14,6 @@ function truncateAddress(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
-function getNetworkDisplayName(chain: string): string {
-  switch (chain) {
-    case "bitcoin":
-    case "bitcoin-mainnet":
-    case "BTC":
-    case "btc":
-    case "mainnet":
-    case "livenet":
-      return "Bitcoin Mainnet";
-    case "bitcoin-testnet":
-    case "testnet":
-      return "Bitcoin Testnet";
-    case "bitcoin-signet":
-    case "signet":
-      return "Bitcoin Signet";
-    default:
-      return chain;
-  }
-}
-
-function getNetworkColor(chain: string): string {
-  switch (chain) {
-    case "bitcoin":
-    case "bitcoin-mainnet":
-    case "BTC":
-    case "btc":
-    case "mainnet":
-    case "livenet":
-      return "text-orange-500";
-    case "bitcoin-testnet":
-    case "testnet":
-      return "text-blue-500";
-    case "bitcoin-signet":
-    case "signet":
-      return "text-purple-500";
-    default:
-      return "text-gray-500";
-  }
-}
-
 export function DynamicBitcoinConnectButton() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
   const isLoggedIn = useIsLoggedIn();
@@ -79,7 +39,6 @@ export function DynamicBitcoinConnectButton() {
     }
 
     // Determine network using bitcoin-address-validation
-    let detectedNetwork = primaryWallet.chain;
     let isTestnet = false;
 
     if (primaryWallet.address) {
@@ -87,8 +46,6 @@ export function DynamicBitcoinConnectButton() {
         const addressInfo = getAddressInfo(primaryWallet.address);
 
         isTestnet = addressInfo.network === "testnet";
-
-        detectedNetwork = isTestnet ? "testnet" : "mainnet";
       } catch {
         // Invalid address format
         return null;
@@ -108,7 +65,6 @@ export function DynamicBitcoinConnectButton() {
     return {
       address: primaryWallet.address,
       chain: primaryWallet.chain,
-      network: detectedNetwork,
       isTestnet,
       connectorName: primaryWallet.connector?.name || "Unknown",
     };
@@ -134,11 +90,6 @@ export function DynamicBitcoinConnectButton() {
               <div className="mt-2">
                 <p className="text-sm text-default-500">
                   Wallet: {bitcoinWalletInfo.connectorName}
-                </p>
-                <p
-                  className={`text-sm font-semibold ${getNetworkColor(bitcoinWalletInfo.network)}`}
-                >
-                  Network: {getNetworkDisplayName(bitcoinWalletInfo.network)}
                 </p>
                 <p className="text-sm text-default-500 font-mono">
                   Address: {truncateAddress(bitcoinWalletInfo.address)}
