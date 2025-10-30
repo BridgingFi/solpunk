@@ -1,11 +1,18 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useRef } from "react";
-import { Button } from "@heroui/button";
-import { Modal, ModalContent, ModalBody, useDisclosure } from "@heroui/modal";
-import { Listbox, ListboxItem } from "@heroui/listbox";
-import { Image } from "@heroui/image";
-import { Spinner } from "@heroui/spinner";
+import {
+  Button,
+  Modal,
+  ModalContent,
+  ModalBody,
+  useDisclosure,
+  Listbox,
+  ListboxItem,
+  Image,
+  Spinner,
+  addToast,
+} from "@heroui/react";
 import {
   useConnect,
   useDisconnect,
@@ -13,7 +20,6 @@ import {
   type UiWalletAccount,
 } from "@wallet-standard/react";
 import { LogOut, Wallet } from "iconoir-react";
-import { addToast } from "@heroui/toast";
 
 import { useSolana } from "@/components/solana-provider";
 

@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@heroui/button";
-import { Modal, ModalContent, ModalHeader, ModalBody } from "@heroui/modal";
-import { addToast } from "@heroui/toast";
-import { Link } from "@heroui/link";
+import {
+  Button,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  addToast,
+  Link,
+} from "@heroui/react";
 
 import { useWalletAccountTransactionSendingSigner } from "@solana/react";
 import { type UiWalletAccount } from "@wallet-standard/react";

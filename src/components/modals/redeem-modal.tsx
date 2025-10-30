@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/input";
-import { Modal, ModalContent, ModalHeader, ModalBody } from "@heroui/modal";
-import { addToast } from "@heroui/toast";
-import { Link } from "@heroui/link";
-import { Image } from "@heroui/image";
+import {
+  Button,
+  Input,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  addToast,
+  Link,
+  Image,
+} from "@heroui/react";
 import { useWalletAccountTransactionSendingSigner } from "@solana/react";
 import { type UiWalletAccount } from "@wallet-standard/react";
 import { findAssociatedTokenPda } from "@solana-program/token-2022";

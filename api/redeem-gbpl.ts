@@ -215,13 +215,15 @@ export default async function handler(
     // Create transaction message
     const transactionMessage = pipe(
       createTransactionMessage({ version: 0 }),
-      (tx) => setTransactionMessageFeePayerSigner(authority, tx),
-      (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-      (tx) => appendTransactionMessageInstructions(instructions, tx),
+      (tx: any) => setTransactionMessageFeePayerSigner(authority, tx),
+      (tx: any) =>
+        setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+      (tx: any) => appendTransactionMessageInstructions(instructions, tx),
     );
 
-    const signedTransaction =
-      await signTransactionMessageWithSigners(transactionMessage);
+    const signedTransaction = await signTransactionMessageWithSigners(
+      transactionMessage as any,
+    );
 
     // Create RPC subscriptions for confirmation
     const rpcSubscriptions = createSolanaRpcSubscriptions(

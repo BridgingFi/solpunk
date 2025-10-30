@@ -1,18 +1,16 @@
-import { Link } from "@heroui/link";
-import { Image } from "@heroui/image";
-import { Button } from "@heroui/button";
 import {
+  Link,
+  Image,
+  Button,
   Dropdown,
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
-} from "@heroui/dropdown";
-import {
   Navbar as HeroUINavbar,
   NavbarBrand,
   NavbarContent,
   NavbarItem,
-} from "@heroui/navbar";
+} from "@heroui/react";
 import {
   X,
   Discord,

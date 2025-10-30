@@ -1,7 +1,6 @@
 import type { NavigateOptions } from "react-router-dom";
 
-import { HeroUIProvider } from "@heroui/system";
-import { ToastProvider } from "@heroui/toast";
+import { HeroUIProvider, ToastProvider } from "@heroui/react";
 import { useHref, useNavigate } from "react-router-dom";
 
 declare module "@react-types/shared" {

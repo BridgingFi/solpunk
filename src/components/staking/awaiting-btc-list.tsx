@@ -1,10 +1,7 @@
 import type { StakeRecord } from "../../../lib/stake-types";
 
 import { forwardRef, useImperativeHandle } from "react";
-import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
-import { Image } from "@heroui/image";
-import { Spinner } from "@heroui/spinner";
+import { Button, Card, CardBody, Image, Spinner } from "@heroui/react";
 import { Refresh } from "iconoir-react";
 
 import { TOKEN_CONFIG } from "../../../lib/config";

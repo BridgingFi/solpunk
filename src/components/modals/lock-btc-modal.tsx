@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@heroui/button";
 import {
+  Button,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from "@heroui/modal";
-import { Input } from "@heroui/input";
+  Input,
+} from "@heroui/react";
+
 import { DynamicBitcoinConnectButton } from "../wallet/dynamic-bitcoin-connect-button";
 
 interface LockBTCModalProps {

@@ -1,20 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { cn } from "@heroui/theme";
-import { Button } from "@heroui/button";
 import {
+  cn,
+  Button,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-} from "@heroui/modal";
-import { Input } from "@heroui/input";
-import { RadioGroup, Radio } from "@heroui/radio";
-import { addToast } from "@heroui/toast";
-import { Link } from "@heroui/link";
-import { Image } from "@heroui/image";
+  Input,
+  RadioGroup,
+  Radio,
+  addToast,
+  Link,
+  Image,
+  Divider,
+} from "@heroui/react";
 import { useWalletAccountTransactionSendingSigner } from "@solana/react";
 import { findAssociatedTokenPda } from "@solana-program/token-2022";
 import {
@@ -33,7 +35,6 @@ import {
   assertIsTransactionMessageWithSingleSendingSigner,
 } from "@solana/kit";
 import { Wallet } from "iconoir-react";
-import { Divider } from "@heroui/divider";
 
 import { WalletConnectButton } from "@/components/wallet/solana-connect-button";
 import { useSolana } from "@/components/solana-provider";

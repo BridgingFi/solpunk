@@ -3,8 +3,7 @@ import type { StakeApiResponse, StakeRecord } from "../../lib/stake-types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { BitcoinWalletConnectors } from "@dynamic-labs/bitcoin";
-import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
+import { Button, Card, CardBody } from "@heroui/react";
 
 import { TOKEN_CONFIG } from "../../lib/config";
 

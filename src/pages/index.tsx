@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 import {
+  addToast,
+  Card,
+  CardBody,
+  Divider,
+  Button,
+  Input,
+  Image,
+  useDisclosure,
+} from "@heroui/react";
+import {
   findAssociatedTokenPda,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from "@solana-program/token-2022";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { addToast } from "@heroui/toast";
-import { Card, CardBody } from "@heroui/card";
-import { Divider } from "@heroui/divider";
 import { Address } from "@solana/kit";
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/input";
-import { Image } from "@heroui/image";
-import { useDisclosure } from "@heroui/modal";
 
 import DefaultLayout from "@/layouts/default";
 import { WalletConnectButton } from "@/components/wallet/solana-connect-button";

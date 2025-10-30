@@ -1,10 +1,13 @@
-import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
-import { Divider } from "@heroui/divider";
-import { Image } from "@heroui/image";
-import { Spinner } from "@heroui/spinner";
-import { addToast } from "@heroui/toast";
-import { Link } from "@heroui/link";
+import {
+  Button,
+  Card,
+  CardBody,
+  Divider,
+  Image,
+  Spinner,
+  addToast,
+  Link,
+} from "@heroui/react";
 import { useSignMessage } from "@solana/react";
 import { useState } from "react";
 

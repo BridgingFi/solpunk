@@ -1,7 +1,6 @@
 "use client";
 
-import { Button } from "@heroui/button";
-import { addToast } from "@heroui/toast";
+import { Button, addToast } from "@heroui/react";
 import { Wallet } from "iconoir-react";
 import { useMemo } from "react";
 import { getAddressInfo } from "bitcoin-address-validation";
