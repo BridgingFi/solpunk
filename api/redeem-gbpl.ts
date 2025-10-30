@@ -24,7 +24,7 @@ import {
 
 import { TOKEN_CONFIG } from "../lib/config.js";
 import { getGbplPriceData } from "../lib/price.js";
-import { processedRedeemKey, STAKE_TOTAL_GBPL_KEY } from "../lib/redis-keys.js";
+import { processedRedeemKey } from "../lib/redis-keys.js";
 
 // Initialize Redis
 const redis = Redis.fromEnv();
@@ -35,6 +35,7 @@ export default async function handler(
 ) {
   if (request.method !== "POST") {
     response.status(405).json({ error: "Method not allowed" });
+
     return;
   }
 
@@ -179,13 +180,16 @@ export default async function handler(
 
     if (!GBPL_MINT_ADDRESS || !USDC_MINT_ADDRESS || !USDC_VAULT_TOKEN_ACCOUNT) {
       response.status(500).json({ error: "Configuration missing" });
+
       return;
     }
 
     // Get authority from private key
     const authorityPrivateKey = process.env.AUTHORITY_PRIVATE_KEY;
+
     if (!authorityPrivateKey) {
       response.status(500).json({ error: "Authority key not configured" });
+
       return;
     }
 
@@ -219,6 +223,7 @@ export default async function handler(
       amount: usdcAmountRaw,
       decimals: usdcDecimals,
     });
+
     instructions.push(transferInstruction);
 
     // Get latest blockhash

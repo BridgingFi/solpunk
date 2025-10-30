@@ -89,12 +89,19 @@ function BTCPageContent() {
       const status: "active" | "awaitingLock" | "matured" =
         stake.htlcStatus === "waiting" ? "awaitingLock" : "active";
 
+      // Compute maturity from createdAt + stakePeriod (client-side)
+      const createdAt = new Date(stake.createdAt);
+      const days = stake.stakePeriod === "6m" ? 180 : 90;
+      const maturity = new Date(
+        createdAt.getTime() + days * 24 * 60 * 60 * 1000,
+      ).toISOString();
+
       return {
         id: stake.id,
         type: "GBPL" as const,
         amount: gbplAmount,
         status,
-        maturity: stake.maturityDate,
+        maturity,
         bonusApr: aprBonus,
       };
     });
@@ -132,7 +139,7 @@ function BTCPageContent() {
     setLockOpen(true);
   };
 
-  const handleConfirmLock = async (_btcAmount: number, _period: string) => {
+  const handleConfirmLock = async (_btcAmount: number) => {
     if (!selectedStake) return;
 
     // Refresh awaiting stakes and user stakes to remove the locked stake
@@ -275,6 +282,7 @@ function BTCPageContent() {
         <LockBTCModal
           gbplAmount={selectedStake.gbplAmount}
           isOpen={lockOpen}
+          stakePeriod={selectedStake.stakePeriod}
           onLock={handleConfirmLock}
           onOpenChange={setLockOpen}
         />

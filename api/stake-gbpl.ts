@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { StakeRecord, StakeRequest } from "../lib/stake-types";
 
+import { createSolanaRpc, type Signature } from "@solana/kit";
 import { Redis } from "@upstash/redis";
 
 import {
@@ -105,11 +106,20 @@ async function get(request: VercelRequest, response: VercelResponse) {
 async function post(request: VercelRequest, response: VercelResponse) {
   try {
     const body: StakeRequest = request.body;
-    const { userAddress, signature, gbplAmountRaw, stakePeriod } = body;
+    const { userAddress, signature, stakePeriod } = body as any;
 
     // Validate required fields
-    if (!userAddress || !signature || !gbplAmountRaw || !stakePeriod) {
+    if (!userAddress || !signature || !stakePeriod) {
       response.status(400).json({ error: "Missing required fields" });
+
+      return;
+    }
+
+    // Sanitize signature to prevent injection
+    const sanitizedSignature = signature.replace(/[^a-zA-Z0-9+/=]/g, "");
+
+    if (sanitizedSignature !== signature) {
+      response.status(400).json({ error: "Invalid signature format" });
 
       return;
     }
@@ -133,30 +143,98 @@ async function post(request: VercelRequest, response: VercelResponse) {
       return;
     }
 
-    // Calculate maturity date based on stake period
+    // Verify on-chain GBPL transfer amount to the vault equals gbplAmountRaw
+    const GBPL_VAULT_TOKEN_ACCOUNT = process.env.VITE_GBPL_VAULT_TOKEN_ACCOUNT;
+
+    if (!GBPL_VAULT_TOKEN_ACCOUNT) {
+      response.status(500).json({ error: "GBPL vault address not configured" });
+
+      return;
+    }
+
+    const rpcUrl =
+      process.env.VITE_SOLANA_RPC_URL || "https://api.devnet.solana.com";
+    const rpc = createSolanaRpc(rpcUrl);
+
+    const signatureObj = sanitizedSignature as Signature;
+    const txDetail = await rpc
+      .getTransaction(signatureObj, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+        encoding: "json",
+      })
+      .send();
+
+    if (!txDetail?.meta) {
+      response.status(500).json({ error: "Failed to get transaction details" });
+
+      return;
+    }
+
+    // Locate vault token account in the transaction
+    const accountKeys = txDetail.transaction.message.accountKeys;
+    const vaultIndex = accountKeys.findIndex(
+      (key: any) => key.toString() === GBPL_VAULT_TOKEN_ACCOUNT,
+    );
+
+    if (vaultIndex === -1) {
+      response.status(400).json({
+        error: "Vault address not found in transaction",
+      });
+
+      return;
+    }
+
+    // Compare token balance change for vault
+    const preTokenBalances = txDetail.meta.preTokenBalances || [];
+    const postTokenBalances = txDetail.meta.postTokenBalances || [];
+
+    const vaultPreBalance = preTokenBalances.find(
+      (balance: any) => balance.accountIndex === vaultIndex,
+    );
+    const vaultPostBalance = postTokenBalances.find(
+      (balance: any) => balance.accountIndex === vaultIndex,
+    );
+
+    if (!vaultPreBalance || !vaultPostBalance) {
+      response.status(400).json({
+        error: "Vault token balance not found in transaction",
+      });
+
+      return;
+    }
+
+    const actualTransferAmount =
+      BigInt(vaultPostBalance.uiTokenAmount.amount) -
+      BigInt(vaultPreBalance.uiTokenAmount.amount);
+
+    if (actualTransferAmount <= 0n) {
+      response.status(400).json({
+        error: "Invalid or zero GBPL transfer amount",
+      });
+
+      return;
+    }
+
+    const actualGbplAmountRawString = actualTransferAmount.toString();
+
+    // Record timestamps
     const now = new Date();
-    const days = stakePeriod === "6m" ? 180 : 90;
-    const maturityDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
     // Generate hash from GBPL transaction signature
     // Preimage will be regenerated from signature when needed (e.g., in redeem API)
     const { hash: htlcHash } = await generatePreimageAndHash(signature);
 
-    // Create stake record
-    // Use signature as the unique ID since all storage and queries are based on signature
-    // Note: signature field removed from record (redundant with id, can be extracted from key)
+    // Create stake record (use signature as unique ID)
     const stakeRecord: StakeRecord = {
       id: signature,
       userAddress,
-      gbplAmountRaw,
+      gbplAmountRaw: actualGbplAmountRawString,
       stakePeriod,
       status: "active",
       createdAt: now.toISOString(),
-      maturityDate: maturityDate.toISOString(),
       htlcHash,
       htlcStatus: "waiting", // Waiting for BTC to be locked
-      btcAddress: generateMockBTCAddress(),
-      btcAmount: calculateRequiredBTCAmount(gbplAmountRaw),
     };
 
     // Store the stake record in Redis (without preimage)
@@ -179,8 +257,8 @@ async function post(request: VercelRequest, response: VercelResponse) {
     // This is sufficient for hackathon/demo, but production needs:
     // - Use BigInt for string parsing, or
     // - Store as string and use Lua script for string-based arithmetic
-    // Convert gbplAmountRaw (string) to number for INCRBY
-    const incrementAmount = parseInt(gbplAmountRaw, 10);
+    // Convert amount (string) to number for INCRBY
+    const incrementAmount = parseInt(actualGbplAmountRawString, 10);
 
     // Use INCRBY for atomic increment operation
     // If the key doesn't exist, it will be initialized to 0 first, then incremented
@@ -191,7 +269,7 @@ async function post(request: VercelRequest, response: VercelResponse) {
     console.log("New stake recorded:", {
       id: stakeRecord.id,
       userAddress,
-      gbplAmount: gbplAmountRaw,
+      gbplAmount: actualGbplAmountRawString,
       stakePeriod,
       htlcHash,
     });
@@ -202,24 +280,10 @@ async function post(request: VercelRequest, response: VercelResponse) {
       stakeRecord: {
         id: stakeRecord.id,
         status: stakeRecord.status,
-        maturityDate: stakeRecord.maturityDate,
         htlcHash: stakeRecord.htlcHash,
         htlcStatus: stakeRecord.htlcStatus,
-        btcAddress: stakeRecord.btcAddress,
-        btcAmount: stakeRecord.btcAmount,
       },
       explorerUrl: `https://solscan.io/tx/${signature}?cluster=devnet`,
-      htlcInfo: {
-        message: "HTLC prepared for BTC locking",
-        btcAddress: stakeRecord.btcAddress,
-        btcAmount: stakeRecord.btcAmount,
-        htlcHash: stakeRecord.htlcHash,
-        instructions: [
-          "Send BTC to the provided address",
-          "Include the HTLC hash in the transaction",
-          "BTC will be locked until GBPL stake matures or early redemption",
-        ],
-      },
     });
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -331,23 +395,4 @@ async function generateHTLCHash(preimage: Uint8Array): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Generate mock BTC address for HTLC
-function generateMockBTCAddress(): string {
-  const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let result = "1"; // Legacy address format
-
-  for (let i = 0; i < 25; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-
-  return result;
-}
-
-// Calculate required BTC amount based on GBPL staked (mock calculation)
-function calculateRequiredBTCAmount(gbplAmountRaw: string): string {
-  // Mock calculation: 1 BTC per 1000 GBPL (simplified)
-  const gbplAmount = parseFloat(gbplAmountRaw) / 1e6; // Convert from raw to actual amount
-  const btcAmount = gbplAmount / 1000;
-
-  return btcAmount.toFixed(8);
-}
+// (HTLC BTC address and BTC amount are computed on the frontend)

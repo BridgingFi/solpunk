@@ -1,7 +1,6 @@
 export interface StakeRequest {
   userAddress: string;
   signature: string;
-  gbplAmountRaw: string;
   stakePeriod: string;
 }
 
@@ -12,11 +11,8 @@ export interface StakeRecord {
   stakePeriod: string;
   status: "pending" | "active" | "completed" | "cancelled";
   createdAt: string;
-  maturityDate: string;
   htlcHash?: string;
   htlcStatus?: "waiting" | "locked" | "unlocked" | "expired";
-  btcAddress?: string;
-  btcAmount?: string;
 }
 
 export interface StakeApiResponse {

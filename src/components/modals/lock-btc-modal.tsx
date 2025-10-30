@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useIsLoggedIn } from "@dynamic-labs/sdk-react-core";
 import {
   Button,
   Modal,
@@ -8,7 +9,8 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Input,
+  Spinner,
+  addToast,
 } from "@heroui/react";
 
 import { DynamicBitcoinConnectButton } from "../wallet/dynamic-bitcoin-connect-button";
@@ -16,8 +18,9 @@ import { DynamicBitcoinConnectButton } from "../wallet/dynamic-bitcoin-connect-b
 interface LockBTCModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onLock: (amount: number, period: string) => void;
+  onLock: (amount: number) => void;
   gbplAmount: number;
+  stakePeriod: string;
 }
 
 export function LockBTCModal({
@@ -25,24 +28,89 @@ export function LockBTCModal({
   onOpenChange,
   onLock,
   gbplAmount,
+  stakePeriod,
 }: LockBTCModalProps) {
-  const [btcAmount, setBtcAmount] = useState("");
-  const [lockPeriod, setLockPeriod] = useState("3m");
+  const isLoggedIn = useIsLoggedIn();
+  const [gbplPrice, setGbplPrice] = useState<number | null>(null);
+  const [isPriceLoading, setIsPriceLoading] = useState(false);
+  // BTC/USD price used for conversion; default to 110,000 if not provided
+  const BTC_USD_PRICE = Number(import.meta.env.VITE_BTC_USD_PRICE || "110000");
+
+  // Fetch current GBPL price (USDC) when modal opens
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const fetchPrice = async () => {
+      setIsPriceLoading(true);
+      try {
+        const res = await fetch("/api/gbpl-price");
+        const data = await res.json();
+
+        if (data && typeof data.price === "number") {
+          setGbplPrice(data.price);
+        } else {
+          setGbplPrice(null);
+          addToast({
+            title: "Failed to load GBPL price",
+            description: "Missing price in response",
+            color: "danger",
+          });
+        }
+      } catch (err) {
+        setGbplPrice(null);
+        addToast({
+          title: "Failed to load GBPL price",
+          description: err instanceof Error ? err.message : "Network error",
+          color: "danger",
+        });
+      } finally {
+        setIsPriceLoading(false);
+      }
+    };
+
+    fetchPrice();
+  }, [isOpen]);
+
+  // Required BTC so that BTC value equals GBPL value at current price
+  const requiredBtc = useMemo(() => {
+    if (gbplPrice === null) {
+      return null;
+    }
+
+    return (gbplAmount * gbplPrice) / BTC_USD_PRICE;
+  }, [gbplAmount, gbplPrice, BTC_USD_PRICE]);
 
   const handleLock = () => {
-    const amount = Number(btcAmount);
-    if (!amount || amount <= 0) return;
+    if (requiredBtc === null) {
+      addToast({
+        title: "Price unavailable",
+        description: "Unable to lock BTC without GBPL price",
+        color: "danger",
+      });
 
-    onLock(amount, lockPeriod);
-    setBtcAmount("");
-    setLockPeriod("3m");
+      return;
+    }
+
+    const amount = requiredBtc;
+
+    if (!amount || amount <= 0) {
+      return;
+    }
+    onLock(amount);
     onOpenChange(false);
   };
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="lg">
+    <Modal
+      isDismissable={false}
+      isOpen={isOpen}
+      size="lg"
+      onOpenChange={onOpenChange}
+    >
       <ModalContent>
-        {(onClose) => (
+        {() => (
           <>
             <ModalHeader className="flex flex-col gap-1">
               Lock BTC Against {gbplAmount.toLocaleString()} GBPL
@@ -55,56 +123,67 @@ export function LockBTCModal({
                     GBPL
                   </p>
                   <p className="text-sm text-blue-600 dark:text-blue-400">
-                    <strong>Suggested BTC:</strong>{" "}
-                    {(gbplAmount / 20000).toFixed(4)} BTC
+                    <strong>Stake Period:</strong>{" "}
+                    {stakePeriod === "6m" ? "6 months" : "3 months"}
                   </p>
                 </div>
 
-                <Input
-                  type="number"
-                  label="BTC Amount to Lock"
-                  placeholder="Enter BTC amount"
-                  value={btcAmount}
-                  onChange={(e) => setBtcAmount(e.target.value)}
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={lockPeriod === "3m" ? "solid" : "flat"}
-                    onPress={() => setLockPeriod("3m")}
-                  >
-                    3 months
-                  </Button>
-                  <Button
-                    variant={lockPeriod === "6m" ? "solid" : "flat"}
-                    onPress={() => setLockPeriod("6m")}
-                  >
-                    6 months
-                  </Button>
+                <div className="p-4 bg-default-100/60 dark:bg-default-100/10 rounded-lg">
+                  {isPriceLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-default-600">
+                      <Spinner size="sm" />
+                      <span>Calculating required BTC...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xs text-default-600">
+                        BTC Price Used: ${BTC_USD_PRICE.toLocaleString()} per
+                        BTC
+                      </p>
+                      <p className="text-xs text-default-600">
+                        GBPL Price Used: $
+                        {gbplPrice !== null
+                          ? Number(gbplPrice).toFixed(6)
+                          : "—"}{" "}
+                        per GBPL
+                      </p>
+                      <p className="text-xs text-default-600">
+                        Formula: Required BTC = (GBPL Amount × GBPL Price) ÷
+                        BTC/USD Price
+                      </p>
+                      <p className="text-xs text-default-600">
+                        = ({gbplAmount.toLocaleString()} × $
+                        {gbplPrice !== null
+                          ? Number(gbplPrice).toFixed(6)
+                          : "—"}
+                        ) ÷ ${BTC_USD_PRICE.toLocaleString()}
+                      </p>
+                      <p className="text-sm mt-1">
+                        <strong>Required BTC:</strong>{" "}
+                        {requiredBtc !== null ? requiredBtc.toFixed(8) : "—"}{" "}
+                        BTC
+                      </p>
+                    </>
+                  )}
                 </div>
 
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <p className="text-sm text-green-600 dark:text-green-400">
-                    <strong>Expected Returns:</strong> +2% bonus APR for both
-                    GBPL and BTC
-                  </p>
-                </div>
-
-                <div className="border-t pt-4">
-                  <p className="text-sm font-semibold mb-2">
-                    Connect Bitcoin Wallet
-                  </p>
-                  <DynamicBitcoinConnectButton />
-                </div>
+                {/* Footer handles connect/confirm */}
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button variant="light" onPress={onClose}>
-                Cancel
-              </Button>
-              <Button color="warning" onPress={handleLock}>
-                Lock BTC
-              </Button>
+              {!isLoggedIn ? (
+                <DynamicBitcoinConnectButton />
+              ) : (
+                <Button
+                  onPress={handleLock}
+                  isDisabled={isPriceLoading || requiredBtc === null}
+                  isLoading={isPriceLoading}
+                  className="w-full"
+                  color="warning"
+                >
+                  Lock BTC
+                </Button>
+              )}
             </ModalFooter>
           </>
         )}

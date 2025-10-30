@@ -172,7 +172,6 @@ function StakeConfirmButton({
         body: JSON.stringify({
           userAddress: selectedAccount!.address,
           signature: gbplTxSignature,
-          gbplAmountRaw: gbplAmountRaw.toString(),
           stakePeriod,
         }),
       });
@@ -186,17 +185,8 @@ function StakeConfirmButton({
       // 3. Show success and call onStake callback
       addToast({
         title: "Stake successful!",
-        description: `Staked ${stakeAmount} GBPL for ${stakePeriod}. HTLC prepared for BTC locking.`,
+        description: `Staked ${stakeAmount} GBPL for ${stakePeriod}.`,
         color: "success",
-        endContent: stakeData.htlcInfo ? (
-          <div className="text-xs text-left">
-            <p className="font-semibold">
-              BTC Address: {stakeData.htlcInfo.btcAddress}
-            </p>
-            <p>Amount: {stakeData.htlcInfo.btcAmount} BTC</p>
-            <p>HTLC Hash: {stakeData.htlcInfo.htlcHash.slice(0, 16)}...</p>
-          </div>
-        ) : undefined,
       });
 
       // Call onStake callback to update UI
