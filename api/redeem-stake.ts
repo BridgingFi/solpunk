@@ -29,13 +29,16 @@ import {
   signTransactionMessageWithSigners,
 } from "@solana/kit";
 
-import { assembleRedeemMessage } from "../lib/message-signature";
+import {
+  STAKE_PENDING_BTC_SET_KEY,
+  STAKE_TOTAL_GBPL_KEY,
+  stakeRecordKey,
+  userStakesSetKey,
+} from "../lib/redis-keys.js";
+import { assembleRedeemMessage } from "../lib/message-signature.js";
 
 // Initialize Redis
 const redis = Redis.fromEnv();
-
-// Redis key for pending BTC deposit stakes (global index - using Set)
-const STAKE_PENDING_BTC_KEY = "stake:pending:btc";
 
 // Verify signature using Solana Kit's verifySignature function
 async function verifySignature(
@@ -161,7 +164,7 @@ export default async function handler(
     }
 
     // Get stake record from Redis
-    const stakeKey = `stake:record:${sanitizedStakeId}`;
+    const stakeKey = stakeRecordKey(sanitizedStakeId);
     const stakeRecordData = await redis.get(stakeKey);
 
     if (!stakeRecordData) {
@@ -311,15 +314,18 @@ export default async function handler(
     await redis.set(stakeKey, JSON.stringify(updatedStakeRecord));
 
     // Remove from user's stake index
-    const userStakesKey = `stake:user:${userAddress}`;
+    const userStakesKey = userStakesSetKey(userAddress);
 
     await redis.srem(userStakesKey, stakeKey);
 
     // Remove from pending BTC list if it exists
-    await redis.srem(STAKE_PENDING_BTC_KEY, stakeKey);
+    await redis.srem(STAKE_PENDING_BTC_SET_KEY, stakeKey);
 
-    // Note: We don't update the total GBPL staked counter here
-    // because the GBPL is being returned to the user, not removed from the system
+    // Update total GBPL staked by subtracting the redeemed amount
+    // Use DECRBY for atomic decrement operation
+    const decrementAmount = parseInt(gbplAmountRaw.toString(), 10);
+
+    await redis.decrby(STAKE_TOTAL_GBPL_KEY, decrementAmount);
 
     response.status(200).json({
       success: true,

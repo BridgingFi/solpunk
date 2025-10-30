@@ -2,14 +2,6 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import { Redis } from "@upstash/redis";
 import {
-  createSolanaRpc,
-  createSolanaRpcSubscriptions,
-  address,
-  type Signature,
-} from "@solana/kit";
-import { getGbplPriceData } from "../lib/price.js";
-import { TOKEN_CONFIG } from "../lib/config.js";
-import {
   findAssociatedTokenPda,
   TOKEN_2022_PROGRAM_ADDRESS,
   getCreateAssociatedTokenInstructionAsync,
@@ -17,6 +9,10 @@ import {
   fetchMint,
 } from "@solana-program/token-2022";
 import {
+  createSolanaRpc,
+  createSolanaRpcSubscriptions,
+  address,
+  type Signature,
   createTransactionMessage,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -27,6 +23,9 @@ import {
   sendAndConfirmTransactionFactory,
   createKeyPairSignerFromBytes,
 } from "@solana/kit";
+
+import { getGbplPriceData } from "../lib/price.js";
+import { TOKEN_CONFIG } from "../lib/config.js";
 
 // Initialize Redis
 const redis = Redis.fromEnv();

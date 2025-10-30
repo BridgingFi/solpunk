@@ -1,20 +1,16 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 import { Redis } from "@upstash/redis";
-import {
-  createSolanaRpc,
-  createSolanaRpcSubscriptions,
-  address,
-  type Signature,
-} from "@solana/kit";
-import { getGbplPriceData } from "../lib/price.js";
-import { TOKEN_CONFIG } from "../lib/config.js";
 import { findAssociatedTokenPda } from "@solana-program/token-2022";
 import {
   TOKEN_PROGRAM_ADDRESS,
   getTransferCheckedInstruction,
 } from "@solana-program/token";
 import {
+  createSolanaRpc,
+  createSolanaRpcSubscriptions,
+  address,
+  type Signature,
   createTransactionMessage,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -25,6 +21,10 @@ import {
   sendAndConfirmTransactionFactory,
   createKeyPairSignerFromBytes,
 } from "@solana/kit";
+
+import { TOKEN_CONFIG } from "../lib/config.js";
+import { getGbplPriceData } from "../lib/price.js";
+import { processedRedeemKey, STAKE_TOTAL_GBPL_KEY } from "../lib/redis-keys.js";
 
 // Initialize Redis
 const redis = Redis.fromEnv();
@@ -43,6 +43,7 @@ export default async function handler(
 
     if (!userAddress || !signature || !gbplAmountRaw) {
       response.status(400).json({ error: "Missing required fields" });
+
       return;
     }
 
@@ -50,24 +51,29 @@ export default async function handler(
 
     if (expectedGbplAmountRaw <= 0) {
       response.status(400).json({ error: "Invalid GBPL amount" });
+
       return;
     }
 
     // Sanitize signature to prevent injection
     const sanitizedSignature = signature.replace(/[^a-zA-Z0-9+/=]/g, "");
+
     if (sanitizedSignature !== signature) {
       response.status(400).json({ error: "Invalid signature format" });
+
       return;
     }
 
     // Check if this signature has already been processed
-    const processed = await redis.get(`processed_redeem:${sanitizedSignature}`);
+    const processed = await redis.get(processedRedeemKey(sanitizedSignature));
+
     if (processed) {
       response.status(200).json({
         confirmed: true,
         alreadyProcessed: true,
         message: "This transaction has already been processed",
       });
+
       return;
     }
 
@@ -106,13 +112,16 @@ export default async function handler(
 
     if (!txDetail?.meta) {
       response.status(500).json({ error: "Failed to get transaction details" });
+
       return;
     }
 
     // Get GBPL vault token account address
     const GBPL_VAULT_TOKEN_ACCOUNT = process.env.VITE_GBPL_VAULT_TOKEN_ACCOUNT;
+
     if (!GBPL_VAULT_TOKEN_ACCOUNT) {
       response.status(500).json({ error: "GBPL vault address not configured" });
+
       return;
     }
 
@@ -126,6 +135,7 @@ export default async function handler(
       response.status(400).json({
         error: "GBPL vault address not found in transaction",
       });
+
       return;
     }
 
@@ -145,6 +155,7 @@ export default async function handler(
       response.status(400).json({
         error: "Vault token balance not found in transaction",
       });
+
       return;
     }
 
@@ -157,6 +168,7 @@ export default async function handler(
       response.status(400).json({
         error: `Transfer amount mismatch. Expected: ${expectedGbplAmountRaw}, Actual: ${actualTransferAmount}`,
       });
+
       return;
     }
 
@@ -232,7 +244,7 @@ export default async function handler(
 
     // Mark this signature as processed in Redis (no expiration)
     await redis.set(
-      `processed_redeem:${sanitizedSignature}`,
+      processedRedeemKey(sanitizedSignature),
       Date.now().toString(),
     );
 
@@ -251,6 +263,7 @@ export default async function handler(
       explorerUrl: `https://solscan.io/tx/${redeemSignature}?cluster=devnet`,
     });
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error("Error processing GBPL redemption:", error);
     response.status(500).json({
       error: "Internal server error",

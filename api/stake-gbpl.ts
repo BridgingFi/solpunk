@@ -3,13 +3,15 @@ import type { StakeRecord, StakeRequest } from "../lib/stake-types";
 
 import { Redis } from "@upstash/redis";
 
+import {
+  STAKE_TOTAL_GBPL_KEY,
+  STAKE_PENDING_BTC_SET_KEY,
+  stakeRecordKey,
+  userStakesSetKey,
+} from "../lib/redis-keys.js";
+
 // Initialize Redis
 const redis = Redis.fromEnv();
-
-// Redis key for total GBPL staked (all users, all statuses)
-const STAKE_TOTAL_GBPL_KEY = "stake:total:gbpl";
-// Redis key for pending BTC deposit stakes (global index - using Set)
-const STAKE_PENDING_BTC_KEY = "stake:pending:btc";
 
 async function get(request: VercelRequest, response: VercelResponse) {
   try {
@@ -17,7 +19,7 @@ async function get(request: VercelRequest, response: VercelResponse) {
 
     // Get all pending BTC deposit stakes from global index (using Redis Set)
     const stakeKeys: string[] =
-      (await redis.smembers(STAKE_PENDING_BTC_KEY)) || [];
+      (await redis.smembers(STAKE_PENDING_BTC_SET_KEY)) || [];
 
     // Fetch all stake records
     const stakeRecords = await Promise.all(
@@ -53,7 +55,7 @@ async function get(request: VercelRequest, response: VercelResponse) {
     let userStakesCount: number | undefined;
 
     if (userAddress) {
-      const userStakesKey = `stake:user:${userAddress}`;
+      const userStakesKey = userStakesSetKey(userAddress);
       // Use Redis Set for user stakes (atomic operations, automatic deduplication)
       const userStakeKeys: string[] =
         (await redis.smembers(userStakesKey)) || [];
@@ -93,6 +95,7 @@ async function get(request: VercelRequest, response: VercelResponse) {
       userStakesCount,
     });
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error("Error fetching stakes:", error);
 
     response.status(500).json({ error: "Internal server error" });
@@ -112,7 +115,7 @@ async function post(request: VercelRequest, response: VercelResponse) {
     }
 
     // Check if transaction already processed
-    const stakeKey = `stake:record:${signature}`;
+    const stakeKey = stakeRecordKey(signature);
     const existingRecordData = await redis.get(stakeKey);
 
     if (existingRecordData) {
@@ -160,14 +163,14 @@ async function post(request: VercelRequest, response: VercelResponse) {
     await redis.set(stakeKey, JSON.stringify(stakeRecord));
 
     // Also store by user address for querying (using Redis Set for atomic operations)
-    const userStakesKey = `stake:user:${userAddress}`;
+    const userStakesKey = userStakesSetKey(userAddress);
 
     // SADD returns the number of elements added (0 if already exists, 1 if new)
     await redis.sadd(userStakesKey, stakeKey);
 
     // Add to global pending BTC deposit list (using Redis Set for atomic operations)
     // SADD automatically handles deduplication, so no need to check if exists
-    await redis.sadd(STAKE_PENDING_BTC_KEY, stakeKey);
+    await redis.sadd(STAKE_PENDING_BTC_SET_KEY, stakeKey);
 
     // Update global total GBPL staked atomically using INCRBY
     // INCRBY is atomic and handles concurrent requests safely
@@ -184,6 +187,7 @@ async function post(request: VercelRequest, response: VercelResponse) {
     await redis.incrby(STAKE_TOTAL_GBPL_KEY, incrementAmount);
 
     // Log the stake for debugging
+    // eslint-disable-next-line no-console
     console.log("New stake recorded:", {
       id: stakeRecord.id,
       userAddress,
@@ -218,6 +222,7 @@ async function post(request: VercelRequest, response: VercelResponse) {
       },
     });
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error("Error processing stake:", error);
 
     response.status(500).json({ error: "Internal server error" });
@@ -243,9 +248,11 @@ export default async function handler(
     }
   } catch (err) {
     if (err instanceof Error) {
+      // eslint-disable-next-line no-console
       console.log(err);
       response.status(400).send(err.message);
     } else {
+      // eslint-disable-next-line no-console
       console.error(err);
       response.status(500).send("unknown error");
     }
