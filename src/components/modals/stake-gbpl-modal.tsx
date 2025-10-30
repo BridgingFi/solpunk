@@ -163,6 +163,9 @@ function StakeConfirmButton({
         ),
       });
 
+      // Wait for 1 second to ensure the transaction is confirmed
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // 2. Call API to record stake
       const stakeResponse = await fetch("/api/stake-gbpl", {
         method: "POST",
