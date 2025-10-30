@@ -1,22 +1,31 @@
 "use client";
 
-import { Button, addToast } from "@heroui/react";
-import { Wallet } from "iconoir-react";
-import { useMemo } from "react";
-import { getAddressInfo } from "bitcoin-address-validation";
 import {
-  DynamicWidget,
-  useDynamicContext,
-  useIsLoggedIn,
-} from "@dynamic-labs/sdk-react-core";
+  Button,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  addToast,
+} from "@heroui/react";
+import { Wallet, LogOut, NavArrowDown } from "iconoir-react";
+import { useMemo, useState } from "react";
+import { getAddressInfo } from "bitcoin-address-validation";
+import { useDynamicContext, useIsLoggedIn } from "@dynamic-labs/sdk-react-core";
+import { WalletIcon } from "@dynamic-labs/wallet-book";
 
 function truncateAddress(address: string): string {
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-export function DynamicBitcoinConnectButton() {
-  const { primaryWallet, setShowAuthFlow } = useDynamicContext();
+export function DynamicBitcoinConnectButton({
+  fullWidth = true,
+}: {
+  fullWidth?: boolean;
+}) {
+  const { primaryWallet, setShowAuthFlow, handleLogOut } = useDynamicContext();
   const isLoggedIn = useIsLoggedIn();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Get Bitcoin wallet info from primary wallet
   const bitcoinWalletInfo = useMemo(() => {
@@ -70,57 +79,68 @@ export function DynamicBitcoinConnectButton() {
     };
   }, [primaryWallet]);
 
+  const handleButtonClick = () => {
+    if (!isLoggedIn) {
+      setShowAuthFlow(true);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await handleLogOut();
+      setIsDropdownOpen(false);
+    } catch (err) {
+      addToast({
+        title: "Failed to disconnect wallet",
+        description: err instanceof Error ? err.message : String(err),
+        color: "warning",
+      });
+    }
+  };
+
+  if (!isLoggedIn || !bitcoinWalletInfo) {
+    return (
+      <Button
+        className={`${fullWidth ? "w-full py-4 text-lg font-semibold" : "px-3 py-2 text-sm"}`}
+        color="primary"
+        startContent={<Wallet />}
+        variant="solid"
+        onPress={handleButtonClick}
+      >
+        Connect Wallet
+      </Button>
+    );
+  }
+
   return (
-    <div className="w-full">
-      {!isLoggedIn ? (
+    <Dropdown isOpen={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+      <DropdownTrigger>
         <Button
-          className="w-full py-4 text-lg font-semibold"
+          className={`${fullWidth ? "w-full py-4 text-lg font-semibold" : "px-3 py-2 text-sm"} justify-between font-mono`}
           color="primary"
-          startContent={<Wallet className="mr-2 h-5 w-5" />}
-          variant="solid"
-          onPress={() => setShowAuthFlow(true)}
+          endContent={<NavArrowDown />}
+          startContent={
+            primaryWallet ? (
+              <WalletIcon className="h-5 w-5" walletKey={primaryWallet.key} />
+            ) : (
+              <Wallet />
+            )
+          }
+          variant="bordered"
         >
-          Connect Bitcoin Wallet
+          {truncateAddress(bitcoinWalletInfo.address)}
         </Button>
-      ) : (
-        <div className="text-center">
-          <div className="text-green-600 mb-4">
-            <p className="font-semibold">Bitcoin Wallet Connected</p>
-            {bitcoinWalletInfo && (
-              <div className="mt-2">
-                <p className="text-sm text-default-500">
-                  Wallet: {bitcoinWalletInfo.connectorName}
-                </p>
-                <p className="text-sm text-default-500 font-mono">
-                  Address: {truncateAddress(bitcoinWalletInfo.address)}
-                </p>
-                {!bitcoinWalletInfo.isTestnet && (
-                  <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                    <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                      ⚠️ Connected to Mainnet - Switch to testnet for testing
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-            {!bitcoinWalletInfo && (
-              <div className="mt-2 text-yellow-600">
-                <p className="text-sm">No Bitcoin wallet info available</p>
-              </div>
-            )}
-            <p className="text-sm text-default-500 mt-2">
-              Ready for BTC lending when available
-            </p>
-            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <p className="text-xs text-blue-600 dark:text-blue-400">
-                💡 To connect to Bitcoin Signet testnet, switch your wallet to
-                Signet network before connecting
-              </p>
-            </div>
-            <DynamicWidget />
-          </div>
-        </div>
-      )}
-    </div>
+      </DropdownTrigger>
+      <DropdownMenu aria-label="Bitcoin wallet actions">
+        <DropdownItem
+          key="disconnect"
+          className="text-danger"
+          startContent={<LogOut />}
+          onPress={handleDisconnect}
+        >
+          Disconnect
+        </DropdownItem>
+      </DropdownMenu>
+    </Dropdown>
   );
 }

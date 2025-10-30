@@ -16,6 +16,7 @@ import { assembleRedeemMessage } from "../../../lib/message-signature";
 import { signatureToBase64 } from "@/utils/signature";
 import { useSolana } from "@/components/solana-provider";
 import { WalletConnectButton } from "@/components/wallet/solana-connect-button";
+import { DynamicBitcoinConnectButton } from "../wallet/dynamic-bitcoin-connect-button";
 
 // Redeem button component that handles the signer
 function RedeemButton({
@@ -356,9 +357,7 @@ export function MyPositionsList({
             />
             My BTC Locks
           </h4>
-          <Button size="sm" variant="flat">
-            Connect BTC Wallet
-          </Button>
+          <DynamicBitcoinConnectButton fullWidth={false} />
         </div>
         {renderBTCSection()}
       </CardBody>

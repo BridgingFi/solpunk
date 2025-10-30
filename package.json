@@ -8,6 +8,7 @@
     "@bitcoinerlab/secp256k1": "^1.2.0",
     "@dynamic-labs/bitcoin": "^4.40.1",
     "@dynamic-labs/sdk-react-core": "^4.40.1",
+    "@dynamic-labs/wallet-book": "^4.41.0",
     "@fontsource/inter": "^5.2.8",
     "@heroui/react": "^2.4.23",
     "@noble/hashes": "^2.0.1",

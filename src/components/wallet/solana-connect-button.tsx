@@ -1,8 +1,12 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import {
   Button,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
   Modal,
   ModalContent,
   ModalBody,
@@ -19,7 +23,7 @@ import {
   type UiWallet,
   type UiWalletAccount,
 } from "@wallet-standard/react";
-import { LogOut, Wallet } from "iconoir-react";
+import { LogOut, Wallet, NavArrowDown } from "iconoir-react";
 
 import { useSolana } from "@/components/solana-provider";
 
@@ -117,6 +121,7 @@ export function WalletConnectButton({
   } = useSolana();
 
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const walletRefs = useRef(
     new Map<string, React.RefObject<WalletConnectRef>>(),
   );
@@ -175,51 +180,37 @@ export function WalletConnectButton({
     }
   };
 
-  return (
-    <>
-      {wallets.length === 0 ? (
+  if (wallets.length === 0) {
+    return (
+      <Button
+        isDisabled
+        className={`${fullWidth ? "w-full py-4 text-lg font-semibold" : "px-3 py-2 text-sm"}`}
+        color="primary"
+        startContent={<Wallet />}
+        variant="solid"
+      >
+        No wallets detected
+      </Button>
+    );
+  }
+
+  if (!isConnected || !selectedWallet || !selectedAccount) {
+    return (
+      <>
         <Button
-          isDisabled
           className={`${fullWidth ? "w-full py-4 text-lg font-semibold" : "px-3 py-2 text-sm"}`}
           color="primary"
-          startContent={<Wallet className="mr-2 h-5 w-5" />}
+          startContent={<Wallet />}
           variant="solid"
-        >
-          No wallets detected
-        </Button>
-      ) : (
-        <Button
-          className={`${fullWidth ? "w-full py-4 text-lg font-semibold" : "px-3 py-2 text-sm"} ${
-            isConnected && selectedWallet && selectedAccount
-              ? "justify-between font-mono"
-              : ""
-          }`}
-          color="primary"
-          startContent={
-            isConnected && selectedWallet && selectedAccount ? (
-              <WalletIcon className="h-5 w-5" wallet={selectedWallet} />
-            ) : (
-              <Wallet className="mr-2 h-5 w-5" />
-            )
-          }
-          variant={
-            isConnected && selectedWallet && selectedAccount
-              ? "bordered"
-              : "solid"
-          }
           onPress={handleButtonClick}
         >
-          {isConnected && selectedWallet && selectedAccount
-            ? truncateAddress(selectedAccount.address)
-            : "Connect wallet"}
+          Connect wallet
         </Button>
-      )}
 
-      <Modal isOpen={isOpen} placement="center" onClose={onClose}>
-        <ModalContent>
-          {() => (
-            <ModalBody className="py-6">
-              {!isConnected ? (
+        <Modal isOpen={isOpen} placement="center" onClose={onClose}>
+          <ModalContent>
+            {() => (
+              <ModalBody className="py-6">
                 <div className="space-y-3">
                   <h3 className="text-lg font-semibold mb-2">
                     Available Wallets
@@ -248,29 +239,44 @@ export function WalletConnectButton({
                     })}
                   </Listbox>
                 </div>
-              ) : selectedWallet && selectedAccount ? (
-                <div className="space-y-3">
-                  <h3 className="text-lg font-semibold mb-2">
-                    Wallet Connected
-                  </h3>
-                  <ListboxItem
-                    className="text-danger"
-                    startContent={
-                      <WalletDisconnectIcon
-                        ref={disconnectRef.current}
-                        wallet={selectedWallet}
-                      />
-                    }
-                    onClick={handleDisconnect}
-                  >
-                    Disconnect
-                  </ListboxItem>
-                </div>
-              ) : null}
-            </ModalBody>
-          )}
-        </ModalContent>
-      </Modal>
-    </>
+              </ModalBody>
+            )}
+          </ModalContent>
+        </Modal>
+      </>
+    );
+  }
+
+  return (
+    <Dropdown isOpen={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+      <DropdownTrigger>
+        <Button
+          className={`${fullWidth ? "w-full py-4 text-lg font-semibold" : "px-3 py-2 text-sm"} justify-between font-mono`}
+          color="primary"
+          endContent={<NavArrowDown />}
+          startContent={
+            <WalletIcon className="h-5 w-5" wallet={selectedWallet} />
+          }
+          variant="bordered"
+        >
+          {truncateAddress(selectedAccount.address)}
+        </Button>
+      </DropdownTrigger>
+      <DropdownMenu aria-label="Solana wallet actions">
+        <DropdownItem
+          key="disconnect"
+          className="text-danger"
+          startContent={
+            <WalletDisconnectIcon
+              ref={disconnectRef.current}
+              wallet={selectedWallet}
+            />
+          }
+          onPress={handleDisconnect}
+        >
+          Disconnect
+        </DropdownItem>
+      </DropdownMenu>
+    </Dropdown>
   );
 }
