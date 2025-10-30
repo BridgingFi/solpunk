@@ -17,6 +17,7 @@ const redis = Redis.fromEnv();
 async function get(request: VercelRequest, response: VercelResponse) {
   try {
     const userAddress = request.query.userAddress as string | undefined;
+    const btcPubkey = request.query.btcPubkey as string | undefined;
 
     // Get all pending BTC deposit stakes from global index (using Redis Set)
     const stakeKeys: string[] =
@@ -54,6 +55,9 @@ async function get(request: VercelRequest, response: VercelResponse) {
     // If userAddress is provided, also fetch user's stakes
     let userStakes: StakeRecord[] | undefined;
     let userStakesCount: number | undefined;
+    // If btcPubkey is provided, also fetch BTC stakes
+    let btcStakes: string[] | undefined;
+    let btcStakesCount: number | undefined;
 
     if (userAddress) {
       const userStakesKey = userStakesSetKey(userAddress);
@@ -86,6 +90,14 @@ async function get(request: VercelRequest, response: VercelResponse) {
       userStakesCount = userStakes.length;
     }
 
+    if (btcPubkey) {
+      const stakeKey = userStakesSetKey(btcPubkey);
+      const stakeKeys: string[] = (await redis.smembers(stakeKey)) || [];
+
+      btcStakes = stakeKeys;
+      btcStakesCount = btcStakes.length;
+    }
+
     response.status(200).json({
       success: true,
       stakes: pendingStakes,
@@ -94,6 +106,8 @@ async function get(request: VercelRequest, response: VercelResponse) {
         typeof totalRaw === "string" ? totalRaw : totalRaw?.toString() || "0",
       userStakes,
       userStakesCount,
+      btcStakes,
+      btcStakesCount,
     });
   } catch (error) {
     // eslint-disable-next-line no-console

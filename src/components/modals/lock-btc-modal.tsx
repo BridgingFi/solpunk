@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDynamicContext, useIsLoggedIn } from "@dynamic-labs/sdk-react-core";
 import { isBitcoinWallet } from "@dynamic-labs/bitcoin";
 import {
@@ -18,12 +18,17 @@ import {
   Spinner,
   addToast,
 } from "@heroui/react";
-import { hex } from "@scure/base";
+import * as btc from "@scure/btc-signer";
+import { hex, base64 } from "@scure/base";
 
 import { DynamicBitcoinConnectButton } from "../wallet/dynamic-bitcoin-connect-button";
 import {
-  buildInitialDepositAddressP2WSH,
-  buildTaprootTimelockAddress,
+  buildInitialDepositAddressP2TR,
+  buildInitialDepositAddressP2WSHLegacy,
+  buildFinalLockAddressP2WSH,
+  formatFinalLockWitnessScript,
+  formatInitialDepositWitnessScript,
+  getBtcNetwork,
 } from "../../../lib/bitcoin-lock";
 
 interface LockBTCModalProps {
@@ -33,6 +38,7 @@ interface LockBTCModalProps {
   gbplAmount: number;
   stakePeriod: string;
   stakeId: string;
+  htlcHash: string;
 }
 
 export function LockBTCModal({
@@ -42,6 +48,7 @@ export function LockBTCModal({
   gbplAmount,
   stakePeriod,
   stakeId,
+  htlcHash,
 }: LockBTCModalProps) {
   const isLoggedIn = useIsLoggedIn();
   const { primaryWallet } = useDynamicContext();
@@ -49,19 +56,40 @@ export function LockBTCModal({
   const [isPriceLoading, setIsPriceLoading] = useState(false);
   const [coordPubkeyHex, setCoordPubkeyHex] = useState<string | null>(null);
   const [userPubkeyHex, setUserPubkeyHex] = useState<string | null>(null);
+  const [userSigningAddress, setUserSigningAddress] = useState<string | null>(
+    null,
+  );
   const [depositAddress, setDepositAddress] = useState<string | null>(null);
-  const [lockAddress, setLockAddress] = useState<string | null>(null);
-  const [lockScriptAsm, setLockScriptAsm] = useState<string | null>(null);
-  const [isLockBuildLoading, setIsLockBuildLoading] = useState(false);
+  const [depositAddressLegacy, setDepositAddressLegacy] = useState<
+    string | null
+  >(null);
   const [isSendingDeposit, setIsSendingDeposit] = useState(false);
   const [depositTxId, setDepositTxId] = useState<string | null>(null);
   const [confirmations, setConfirmations] = useState<number>(0);
   const [expanded, setExpanded] = useState<string[]>(["step1"]);
+  const [isBuildingFinalLock, setIsBuildingFinalLock] = useState(false);
+  const [finalizeTxId, setFinalizeTxId] = useState<string | null>(null);
+  const [finalLockAddress, setFinalLockAddress] = useState<string | null>(null);
+
+  // Timer ref for confirmations polling so we can cancel across effects when stakeId changes
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Loading indicators for coordinator pubkey and restored txid
+  const [isTxidLoading, setIsTxidLoading] = useState(false);
+
   const BTC_NETWORK = (
     import.meta.env.VITE_BTC_NETWORK || "testnet4"
   ).toLowerCase();
   // BTC/USD price used for conversion; default to 110,000 if not provided
   const BTC_USD_PRICE = Number(import.meta.env.VITE_BTC_USD_PRICE || "110000");
+
+  // initial default timeout blocks is 10, here use 1 for testing purpose.
+  // const initialTimeoutBlocks = 10;
+  const initialTimeoutBlocks = 1;
+
+  // Derive approximate CSV blocks from period (10 min/block), here use 2 for testing purpose.
+  // const finalCsvBlocks = stakePeriod === "6m" ? 6 * 30 * 24 * 6 : 3 * 30 * 24 * 6;
+  const finalCsvBlocks = 2;
 
   // Fetch current GBPL price (USDC) when modal opens
   useEffect(() => {
@@ -198,7 +226,7 @@ export function LockBTCModal({
           : "Submitted",
         color: "success",
         endContent: txUrl ? (
-          <Link isExternal showAnchorIcon href={txUrl}>
+          <Link isExternal showAnchorIcon href={txUrl} size="sm">
             View on mempool.space
           </Link>
         ) : undefined,
@@ -214,13 +242,130 @@ export function LockBTCModal({
     }
   };
 
-  // Derive approximate CSV blocks from period (10 min/block)
-  const csvBlocks = stakePeriod === "6m" ? 6 * 30 * 24 * 6 : 3 * 30 * 24 * 6;
+  const handleWithdraw = async () => {
+    try {
+      if (!primaryWallet || !isBitcoinWallet(primaryWallet)) {
+        addToast({
+          title: "Unsupported wallet",
+          description: "Please switch to a Bitcoin wallet",
+          color: "warning",
+        });
+
+        return;
+      }
+
+      if (!depositAddressLegacy) {
+        addToast({
+          title: "No deposit address",
+          description: "Please generate the initial deposit address first",
+          color: "warning",
+        });
+
+        return;
+      }
+
+      const csvBlocks = initialTimeoutBlocks;
+
+      const p2tr = buildInitialDepositAddressP2TR(
+        hex.decode(userPubkeyHex!),
+        hex.decode(coordPubkeyHex!),
+        csvBlocks,
+        BTC_NETWORK,
+      ).p2tr;
+
+      const tx = new btc.Transaction();
+
+      tx.addInput({
+        ...p2tr,
+        txid: depositTxId!,
+        index: 0,
+        sequence: csvBlocks,
+        witnessUtxo: {
+          script: p2tr.script,
+          amount: requiredSats!,
+        },
+      });
+      tx.addOutputAddress(
+        primaryWallet.address,
+        requiredSats! - 200n,
+        getBtcNetwork(BTC_NETWORK),
+      );
+
+      const psbt = await primaryWallet.signPsbt({
+        unsignedPsbtBase64: base64.encode(tx.toPSBT()),
+        allowedSighash: [btc.SigHash.SINGLE_ANYONECANPAY],
+        signature: [
+          {
+            address: userSigningAddress!,
+            signingIndexes: [0],
+            disableAddressValidation: true,
+          },
+        ],
+      });
+
+      if (!psbt?.signedPsbt) {
+        throw new Error("Failed to get signed PSBT");
+      }
+
+      const tx2 = btc.Transaction.fromPSBT(base64.decode(psbt.signedPsbt), {
+        allowUnknownInputs: true,
+      });
+
+      tx2.finalize();
+      const res = await fetch("https://mempool.space/testnet4/api/tx", {
+        method: "POST",
+        body: hex.encode(tx2.extract()),
+      });
+
+      if (res.status != 200) {
+        let text = await res.text();
+
+        if (text.includes("non-BIP68-final")) text += ", timelock not passed";
+        throw new Error(text);
+      }
+
+      const txid = await res.text();
+
+      addToast({
+        title: "Withdraw successful",
+        description: `TXID: ${txid}`,
+        endContent: (
+          <Link
+            isExternal
+            showAnchorIcon
+            href={`https://mempool.space/testnet4/tx/${txid}`}
+            size="sm"
+          >
+            View on mempool.space
+          </Link>
+        ),
+        color: "success",
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(err);
+      addToast({
+        title: "Withdraw failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        color: "danger",
+      });
+    }
+  };
 
   // Phase 2: Build initial deposit prerequisites (coordinator pubkey + deposit address) and restore saved txid
   useEffect(() => {
-    if (!isOpen) return;
-    if (!isLoggedIn) return;
+    if (!isOpen || !isLoggedIn) {
+      setCoordPubkeyHex(null);
+      setUserPubkeyHex(null);
+      setDepositAddress(null);
+      setDepositAddressLegacy(null);
+      setFinalLockAddress(null);
+      setFinalizeTxId(null);
+      setDepositTxId(null);
+      setConfirmations(0);
+
+      return;
+    }
 
     // Resolve user BTC pubkey robustly from Dynamic
     const resolveUserPubkeyHex = async (): Promise<string | null> => {
@@ -237,6 +382,7 @@ export function LockBTCModal({
           const fromAdditional = chosen?.publicKey;
 
           if (typeof fromAdditional === "string") {
+            setUserSigningAddress(chosen?.address);
             setUserPubkeyHex(fromAdditional);
 
             return fromAdditional;
@@ -257,6 +403,7 @@ export function LockBTCModal({
       btcPubkeyHex: string | null,
     ): Promise<string | null> => {
       try {
+        setIsTxidLoading(true);
         const query = new URLSearchParams();
 
         if (stakeIdParam) query.set("stakeId", stakeIdParam);
@@ -275,6 +422,11 @@ export function LockBTCModal({
           setDepositTxId(null);
           setExpanded(["step1"]);
         }
+        if (data?.finalTxid) {
+          setFinalizeTxId(data.finalTxid as string);
+        } else {
+          setFinalizeTxId(null);
+        }
 
         return data.pubkeyHex as string;
       } catch (err) {
@@ -286,6 +438,8 @@ export function LockBTCModal({
         });
 
         return null;
+      } finally {
+        setIsTxidLoading(false);
       }
     };
 
@@ -295,42 +449,52 @@ export function LockBTCModal({
     ) => {
       if (!userPubkeyHex || !coordinatorPubkeyHex) {
         setDepositAddress(null);
-        setLockAddress(null);
-        setLockScriptAsm(null);
+        setFinalLockAddress(null);
 
         return;
       }
       try {
-        setIsLockBuildLoading(true);
-        // Phase 2: P2WSH initial deposit on testnet
-        const dep = buildInitialDepositAddressP2WSH(
+        // Phase 2: P2TR initial deposit on testnet
+        const dep = buildInitialDepositAddressP2TR(
           hex.decode(userPubkeyHex),
           hex.decode(coordinatorPubkeyHex),
-          10,
+          initialTimeoutBlocks,
           BTC_NETWORK,
         );
 
         setDepositAddress(dep.address);
-
-        const { address, scriptAsm } = buildTaprootTimelockAddress(
-          hex.decode(userPubkeyHex),
-          hex.decode(coordinatorPubkeyHex),
-          csvBlocks,
+        setDepositAddressLegacy(
+          buildInitialDepositAddressP2WSHLegacy(
+            hex.decode(userPubkeyHex),
+            hex.decode(coordinatorPubkeyHex),
+            10,
+            BTC_NETWORK,
+          ).address,
         );
+        // Build final P2WSH preview when hash available
 
-        setLockAddress(address);
-        setLockScriptAsm(scriptAsm);
+        // Also prepare final P2WSH script (requires HTLC hash)
+        // htlcHash prop may be undefined; only set when valid
+        if (htlcHash && htlcHash.length === 64) {
+          const final = buildFinalLockAddressP2WSH(
+            hex.decode(userPubkeyHex),
+            htlcHash,
+            finalCsvBlocks,
+            BTC_NETWORK,
+          );
+
+          setFinalLockAddress(final.address);
+        } else {
+          setFinalLockAddress(null);
+        }
       } catch (err) {
         setDepositAddress(null);
-        setLockAddress(null);
-        setLockScriptAsm(null);
+        setFinalLockAddress(null);
         addToast({
           title: "Failed to build address",
           description: err instanceof Error ? err.message : "Unknown error",
           color: "warning",
         });
-      } finally {
-        setIsLockBuildLoading(false);
       }
     };
 
@@ -349,7 +513,7 @@ export function LockBTCModal({
 
       await buildLockAddress(userPubkeyHex, coord);
     })();
-  }, [isOpen, isLoggedIn, primaryWallet, csvBlocks, stakeId]);
+  }, [isOpen, isLoggedIn, primaryWallet, finalCsvBlocks, stakeId]);
 
   // Poll BTC confirmations when txid exists
   useEffect(() => {
@@ -358,8 +522,6 @@ export function LockBTCModal({
 
       return;
     }
-
-    let timer: any;
 
     const fetchConfs = async () => {
       try {
@@ -375,11 +537,13 @@ export function LockBTCModal({
         ]);
         const tx = await txRes.json();
         const tipHeight = Number(await tipRes.text());
+
         if (
           tx?.status?.confirmed &&
           typeof tx?.status?.block_height === "number"
         ) {
           const confs = Math.max(0, tipHeight - tx.status.block_height + 1);
+
           setConfirmations(confs);
         } else {
           setConfirmations(0);
@@ -387,41 +551,133 @@ export function LockBTCModal({
       } catch {
         // ignore
       } finally {
-        timer = setTimeout(fetchConfs, 15000);
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = setTimeout(fetchConfs, 180000);
       }
     };
 
     fetchConfs();
 
     return () => {
-      if (timer) clearTimeout(timer);
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
     };
   }, [depositTxId, BTC_NETWORK]);
 
-  const renderDepositScript = () => {
-    if (!userPubkeyHex || !coordPubkeyHex) {
-      return "";
+  // Reset cached state and cancel timers when switching to a different stake
+  useEffect(() => {
+    // Cancel any pending confirmations polling
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
     }
 
-    return [
-      "# Short-timeout refund OR 2-of-2 multisig spend",
-      "OP_IF",
-      "  # Short timeout for refund",
-      `  ${10}`,
-      "  OP_CHECKSEQUENCEVERIFY",
-      "  OP_DROP",
-      "  # User single signature path",
-      `  ${userPubkeyHex}`,
-      "  OP_CHECKSIG",
-      "OP_ELSE",
-      "  # 2-of-2 multisig path (Coordinator + User)",
-      "  2",
-      `  ${coordPubkeyHex}`,
-      `  ${userPubkeyHex}`,
-      "  2",
-      "  OP_CHECKMULTISIG",
-      "OP_ENDIF",
-    ].join("\n");
+    // Reset modal-specific cached state
+    setConfirmations(0);
+    setExpanded(["step1"]);
+    setFinalizeTxId(null);
+    setDepositTxId(null);
+    setFinalLockAddress(null);
+    // Keep coordinator and user key info; they are wallet/global scoped and rarely change across stakes
+    setIsSendingDeposit(false);
+    setIsBuildingFinalLock(false);
+    // Price can be retained; rebuild effects will fetch needed data based on new stakeId
+  }, [stakeId]);
+
+  const handleBuildAndSubmitPsbt = async () => {
+    try {
+      if (
+        !depositTxId ||
+        !userPubkeyHex ||
+        !coordPubkeyHex ||
+        !finalLockAddress ||
+        !depositTxId ||
+        !requiredSats ||
+        !primaryWallet ||
+        !isBitcoinWallet(primaryWallet)
+      ) {
+        addToast({
+          title: "Missing data",
+          description: "Deposit txid or pubkeys not ready",
+          color: "warning",
+        });
+
+        return;
+      }
+
+      setIsBuildingFinalLock(true);
+
+      const csvBlocks = finalCsvBlocks;
+
+      // Ask server to assemble full PSBT and partially sign coordinator inputs
+      const assembleRes = await fetch("/api/assemble-lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stakeId,
+          userPubkeyHex,
+          htlcHash,
+          depositTxId,
+          csvBlocks,
+          network: BTC_NETWORK,
+        }),
+      });
+      const assembleData = await assembleRes.json();
+
+      if (!assembleRes.ok || !assembleData?.psbtBase64) {
+        throw new Error(assembleData?.error || "Failed to assemble PSBT");
+      }
+
+      // Let wallet sign input 0
+      const psbt = await primaryWallet.signPsbt({
+        unsignedPsbtBase64: assembleData.psbtBase64,
+        allowedSighash: [1],
+        signature: [
+          {
+            address: userSigningAddress!,
+            signingIndexes: [0],
+            disableAddressValidation: true,
+          },
+        ],
+      });
+
+      if (!psbt?.signedPsbt) {
+        throw new Error("Failed to get signed PSBT");
+      }
+
+      const res = await fetch("/api/finalize-lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stakeId,
+          depositTxId,
+          psbt: psbt.signedPsbt,
+          network: BTC_NETWORK,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Finalize failed");
+      }
+
+      setFinalizeTxId(data.txid as string);
+      addToast({
+        title: "Final lock broadcasted",
+        description: `${String(data.txid).slice(0, 12)}...`,
+        color: "success",
+      });
+    } catch (err) {
+      addToast({
+        title: "PSBT build/submit failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        color: "danger",
+      });
+    } finally {
+      setIsBuildingFinalLock(false);
+    }
   };
 
   return (
@@ -474,7 +730,7 @@ export function LockBTCModal({
                   key="step1"
                   aria-label="Step 1"
                   subtitle={
-                    depositTxId ? (
+                    depositTxId && (
                       <span className="text-xs">
                         TXID:{" "}
                         <span className="font-mono">
@@ -488,73 +744,79 @@ export function LockBTCModal({
                           {confirmations} conf
                         </Chip>
                       </span>
-                    ) : undefined
+                    )
                   }
                   title="Step 1: Send BTC to Initial Deposit Address"
                 >
-                  {isLockBuildLoading ? (
-                    <div className="flex items-center gap-2 text-xs text-default-600">
-                      <Spinner size="sm" />
-                      <span>Generating initial deposit address...</span>
-                    </div>
-                  ) : depositAddress ? (
-                    <div className="text-xs">
-                      <p className="text-default-600">
-                        Deposit Address (testnet P2WSH):
-                      </p>
-                      <p className="font-mono break-all">{depositAddress}</p>
-                      {coordPubkeyHex && userPubkeyHex && (
-                        <>
-                          <p className="text-default-600 mt-2">
-                            Witness Script:
-                          </p>
-                          <Code className="text-xs overflow-x-scroll w-full">
-                            {<pre>{renderDepositScript()}</pre>}
-                          </Code>
-                          {!depositTxId && (
-                            <Button
-                              className="mt-3"
-                              color="primary"
-                              isDisabled={
-                                !depositAddress || requiredSats === null
-                              }
-                              isLoading={isSendingDeposit}
-                              size="sm"
-                              onPress={handleSendDeposit}
-                            >
-                              Send BTC
-                            </Button>
-                          )}
-                          {depositTxId && (
-                            <div className="mt-3 text-xs">
-                              <p className="text-default-600">
-                                Deposit submitted. You can withdraw after
-                                timeout if needed.
-                              </p>
-                              <Link
-                                isExternal
-                                showAnchorIcon
-                                href={`${
-                                  BTC_NETWORK === "signet"
-                                    ? "https://mempool.space/signet/tx/"
-                                    : BTC_NETWORK === "testnet4"
-                                      ? "https://mempool.space/testnet4/tx/"
-                                      : "https://mempool.space/testnet/tx/"
-                                }${depositTxId}`}
-                              >
-                                View on mempool.space
-                              </Link>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-default-500">
-                      Address unavailable. Connect a Bitcoin wallet that exposes
-                      a public key.
+                  <div className="text-xs">
+                    <p className="text-default-600">
+                      Deposit Address (testnet P2TR):
                     </p>
-                  )}
+                    <p className="font-mono break-all">
+                      {isLoggedIn
+                        ? depositAddress || <Spinner size="sm" variant="dots" />
+                        : "-"}
+                    </p>
+                    {/*<p className="text-default-600 mt-2">
+                      Deposit Address (testnet P2WSH Legacy):
+                    </p>
+                    <p className="font-mono break-all">
+                      {depositAddressLegacy}
+                    </p> */}
+                    <p className="text-default-600 mt-2">Witness Script:</p>
+                    {isLoggedIn ? (
+                      coordPubkeyHex && userPubkeyHex ? (
+                        <Code className="text-xs overflow-x-scroll w-full">
+                          <pre>
+                            {formatInitialDepositWitnessScript(
+                              userPubkeyHex,
+                              coordPubkeyHex,
+                              initialTimeoutBlocks,
+                            )}
+                          </pre>
+                        </Code>
+                      ) : (
+                        <Spinner size="sm" variant="dots" />
+                      )
+                    ) : (
+                      "-"
+                    )}
+                    <p className="text-default-600 mb-2">
+                      You can withdraw after timeout if needed.
+                    </p>
+                    {!depositTxId ? (
+                      <Button
+                        color="primary"
+                        isDisabled={!depositAddress || requiredSats === null}
+                        isLoading={isSendingDeposit || isTxidLoading}
+                        size="sm"
+                        onPress={handleSendDeposit}
+                      >
+                        Send BTC
+                      </Button>
+                    ) : (
+                      <>
+                        <Button size="sm" onPress={handleWithdraw}>
+                          Withdraw
+                        </Button>
+                        <Link
+                          isExternal
+                          showAnchorIcon
+                          className="text-xs ml-2"
+                          size="sm"
+                          href={`${
+                            BTC_NETWORK === "signet"
+                              ? "https://mempool.space/signet/tx/"
+                              : BTC_NETWORK === "testnet4"
+                                ? "https://mempool.space/testnet4/tx/"
+                                : "https://mempool.space/testnet/tx/"
+                          }${depositTxId}`}
+                        >
+                          View on mempool.space
+                        </Link>
+                      </>
+                    )}
+                  </div>
                 </AccordionItem>
 
                 <AccordionItem
@@ -562,22 +824,61 @@ export function LockBTCModal({
                   aria-label="Step 2"
                   title="Step 2: Final Lock Output"
                 >
-                  {lockScriptAsm ? (
-                    <Code className="mt-2 w-full text-xs">{lockScriptAsm}</Code>
+                  <p className="text-xs text-default-500">
+                    Final Witness Script (P2WSH):
+                  </p>
+                  {coordPubkeyHex && userPubkeyHex ? (
+                    <Code className="mt-2 w-full text-xs overflow-x-scroll">
+                      <pre>
+                        {formatFinalLockWitnessScript(
+                          userPubkeyHex,
+                          htlcHash,
+                          finalCsvBlocks,
+                        )}
+                      </pre>
+                    </Code>
                   ) : (
-                    <p className="text-xs text-default-500">
-                      Script preview will appear after address generation.
-                    </p>
+                    <Spinner size="sm" variant="dots" />
                   )}
-                  {lockAddress && (
-                    <p className="text-xs text-default-600 mt-2">
-                      Lock Address (Taproot):{" "}
-                      <span className="font-mono break-all">{lockAddress}</span>
+                  <p className="text-xs text-default-600 mt-2">
+                    Final Lock Address (P2WSH):
+                  </p>
+                  {finalLockAddress ? (
+                    <p className="text-xs font-mono break-all">
+                      {finalLockAddress}
                     </p>
+                  ) : (
+                    <Spinner size="sm" variant="dots" />
                   )}
+                  <div className="mt-3 flex items-center gap-3">
+                    {!finalizeTxId ? (
+                      <Button
+                        color="primary"
+                        isDisabled={!depositTxId || Boolean(finalizeTxId)}
+                        isLoading={isBuildingFinalLock}
+                        size="sm"
+                        onPress={handleBuildAndSubmitPsbt}
+                      >
+                        Lock with yield
+                      </Button>
+                    ) : (
+                      <Link
+                        isExternal
+                        showAnchorIcon
+                        href={`${
+                          BTC_NETWORK === "signet"
+                            ? "https://mempool.space/signet/tx/"
+                            : BTC_NETWORK === "testnet4"
+                              ? "https://mempool.space/testnet4/tx/"
+                              : "https://mempool.space/testnet/tx/"
+                        }${finalizeTxId}`}
+                      >
+                        Final TX: {finalizeTxId.slice(0, 12)}...
+                      </Link>
+                    )}
+                  </div>
                 </AccordionItem>
               </Accordion>
-              <DynamicBitcoinConnectButton />
             </ModalBody>
             {!isLoggedIn && (
               <ModalFooter>

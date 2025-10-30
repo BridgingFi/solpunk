@@ -5,14 +5,18 @@ import { BIP32Factory } from "bip32";
 import { Redis } from "@upstash/redis";
 import { hex } from "@scure/base";
 
-import { stakeBtcDepositTxMapKey } from "../lib/redis-keys.js";
+import {
+  stakeBtcDepositTxMapKey,
+  stakeBtcFinalTxKey,
+  userStakesSetKey,
+} from "../lib/redis-keys.js";
 
 const bip32 = BIP32Factory(ecc);
 const redis = Redis.fromEnv();
 
 type GetQuery = {
   stakeId?: string;
-  btcPubkey?: string; // hex string
+  btcPubkey?: string;
 };
 
 export default async function handler(
@@ -55,11 +59,18 @@ async function getHandler(request: VercelRequest, response: VercelResponse) {
     const rootPubkeyHex = Buffer.from(hdKey.publicKey).toString("hex");
 
     let txid: string | undefined;
+    let finalTxid: string | undefined;
 
-    if (stakeId && btcPubkey) {
+    if (stakeId) {
       const mapKey = stakeBtcDepositTxMapKey(stakeId);
-      const value = await redis.hget<string>(mapKey, btcPubkey);
-      txid = typeof value === "string" ? value : undefined;
+      if (btcPubkey) {
+        const depByPk = await redis.hget<string>(mapKey, btcPubkey);
+        txid = typeof depByPk === "string" ? depByPk : undefined;
+      }
+      if (txid) {
+        const finalByDep = await redis.get<string>(stakeBtcFinalTxKey(txid));
+        if (typeof finalByDep === "string") finalTxid = finalByDep;
+      }
     }
 
     return response.status(200).json({
@@ -67,6 +78,7 @@ async function getHandler(request: VercelRequest, response: VercelResponse) {
       pubkeyHex: rootPubkeyHex,
       hasTx: Boolean(txid),
       txid,
+      finalTxid,
     });
   } catch (error) {
     return response.status(500).json({
@@ -91,11 +103,6 @@ async function postHandler(request: VercelRequest, response: VercelResponse) {
     }
 
     // Basic sanity checks
-    if (!/^[0-9a-fA-F]+$/.test(btcPubkey)) {
-      response.status(400).json({ error: "Invalid btcPubkey hex" });
-
-      return;
-    }
     if (!/^[0-9a-fA-F]{64}$/.test(txid)) {
       // mempool.space uses hex txid (64 hex chars)
       response.status(400).json({ error: "Invalid txid format" });
@@ -103,7 +110,12 @@ async function postHandler(request: VercelRequest, response: VercelResponse) {
       return;
     }
 
+    const stakeKey = userStakesSetKey(btcPubkey);
+
+    await redis.sadd(stakeKey, txid);
+
     const mapKey = stakeBtcDepositTxMapKey(stakeId);
+
     await redis.hset(mapKey, { [btcPubkey]: txid });
 
     return response.status(200).json({ success: true });

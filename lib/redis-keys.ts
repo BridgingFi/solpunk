@@ -15,3 +15,7 @@ export const processedRedeemKey = (signature: string) =>
 // Map of BTC deposit txids per stake, keyed by btc pubkey (hex)
 export const stakeBtcDepositTxMapKey = (stakeId: string) =>
   `stake:btc-deposit-tx:${stakeId}`;
+
+// Final lock txid stored by deposit txid (separate key per deposit)
+export const stakeBtcFinalTxKey = (depositTxId: string) =>
+  `stake:btc-final-tx:${depositTxId}`;

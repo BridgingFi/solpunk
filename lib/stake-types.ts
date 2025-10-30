@@ -1,5 +1,6 @@
 export interface StakeRequest {
   userAddress: string;
+  btcPubkey: string;
   signature: string;
   stakePeriod: string;
 }
@@ -22,5 +23,7 @@ export interface StakeApiResponse {
   totalGbplStaked?: string; // Total GBPL staked across all users (raw value as string)
   userStakes?: StakeRecord[]; // User's stakes (if userAddress provided)
   userStakesCount?: number; // Count of user's stakes
+  btcStakes?: string[]; // BTC stakes (if btcPubkey provided)
+  btcStakesCount?: number; // Count of BTC stakes
   error?: string;
 }

@@ -14,6 +14,7 @@ export type AwaitingStake = {
   stakePeriod: string; // "3m" or "6m"
   aprBase: number; // percent
   aprBonus: number; // percent
+  htlcHash: string;
 };
 
 interface AwaitingBTCListProps {
@@ -66,6 +67,7 @@ export const AwaitingBTCList = forwardRef<
           stakePeriod: stake.stakePeriod,
           aprBase,
           aprBonus,
+          htlcHash: stake.htlcHash || "",
         };
       },
     );

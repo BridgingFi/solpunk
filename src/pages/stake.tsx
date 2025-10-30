@@ -1,8 +1,14 @@
 import type { StakeApiResponse, StakeRecord } from "../../lib/stake-types";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
-import { BitcoinWalletConnectors } from "@dynamic-labs/bitcoin";
+import {
+  DynamicContextProvider,
+  useDynamicContext,
+} from "@dynamic-labs/sdk-react-core";
+import {
+  BitcoinWalletConnectors,
+  isBitcoinWallet,
+} from "@dynamic-labs/bitcoin";
 import { Button, Card, CardBody } from "@heroui/react";
 
 import { TOKEN_CONFIG } from "../../lib/config";
@@ -20,17 +26,54 @@ import DefaultLayout from "@/layouts/default";
 
 function BTCPageContent() {
   const { selectedAccount } = useSolana();
+  const { primaryWallet } = useDynamicContext();
+  const [userPubkeyHex, setUserPubkeyHex] = useState<string | null>(null);
   const awaitingBTCListRef = useRef<AwaitingBTCListRef>(null);
   const [selectedStake, setSelectedStake] = useState<AwaitingStake | null>(
     null,
   );
   const [userStakes, setUserStakes] = useState<StakeRecord[]>([]);
+  const [btcStakes, setBtcStakes] = useState<string[]>([]);
   const [totalGbplStakedRaw, setTotalGbplStakedRaw] = useState<string | null>(
     null,
   );
   const [pendingStakes, setPendingStakes] = useState<StakeRecord[]>([]);
   const [isLoadingAwaiting, setIsLoadingAwaiting] = useState(true);
   const [awaitingError, setAwaitingError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Resolve user BTC pubkey robustly from Dynamic
+    const resolveUserPubkeyHex = async (): Promise<string | null> => {
+      try {
+        if (!primaryWallet || !isBitcoinWallet(primaryWallet)) return null;
+
+        // 0) Prefer reading from additionalAddresses: payment -> ordinals -> first
+        const addrs = primaryWallet.additionalAddresses;
+
+        if (Array.isArray(addrs) && addrs.length > 0) {
+          const payment = addrs.find((a) => a.type === "payment");
+          const ordinals = addrs.find((a) => a.type === "ordinals");
+          const chosen = payment || ordinals || addrs[0];
+          const fromAdditional = chosen?.publicKey;
+
+          if (typeof fromAdditional === "string") {
+            setUserPubkeyHex(fromAdditional);
+
+            return fromAdditional;
+          }
+        }
+
+        return null;
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[BTC] resolveUserPubkeyHex failed", e);
+
+        return null;
+      }
+    };
+
+    resolveUserPubkeyHex();
+  }, [primaryWallet]);
 
   // Fetch awaiting stakes and total GBPL staked from API (combined call)
   // If wallet is connected, also fetch user's stakes in the same call
@@ -40,11 +83,15 @@ function BTCPageContent() {
       setAwaitingError(null);
 
       // Build URL with userAddress if wallet is connected
-      const url = selectedAccount?.address
-        ? `/api/stake-gbpl?userAddress=${encodeURIComponent(selectedAccount.address)}`
-        : "/api/stake-gbpl";
+      let search = new URLSearchParams();
 
-      const response = await fetch(url);
+      if (selectedAccount?.address) {
+        search.set("userAddress", selectedAccount.address);
+      }
+      if (userPubkeyHex) {
+        search.set("btcPubkey", userPubkeyHex);
+      }
+      const response = await fetch(`/api/stake-gbpl?${search.toString()}`);
       const data = (await response.json()) as StakeApiResponse;
 
       if (!response.ok || !data.success) {
@@ -66,6 +113,12 @@ function BTCPageContent() {
         // Clear user stakes if wallet is disconnected
         setUserStakes([]);
       }
+
+      if (data.btcStakes) {
+        setBtcStakes(data.btcStakes);
+      } else {
+        setBtcStakes([]);
+      }
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("Error fetching awaiting stakes:", err);
@@ -82,29 +135,45 @@ function BTCPageContent() {
 
   // Convert userStakes to MyPosition format for display
   const myPositionsFromApi = useMemo(() => {
-    return userStakes.map((stake) => {
-      const gbplAmount =
-        parseFloat(stake.gbplAmountRaw) / 10 ** TOKEN_CONFIG.GBPL.DECIMALS;
-      const aprBonus = stake.stakePeriod === "6m" ? 3 : 2;
-      const status: "active" | "awaitingLock" | "matured" =
-        stake.htlcStatus === "waiting" ? "awaitingLock" : "active";
+    return [
+      ...btcStakes.map((stake) => {
+        const status: "active" | "awaitingLock" | "matured" = "active";
 
-      // Compute maturity from createdAt + stakePeriod (client-side)
-      const createdAt = new Date(stake.createdAt);
-      const days = stake.stakePeriod === "6m" ? 180 : 90;
-      const maturity = new Date(
-        createdAt.getTime() + days * 24 * 60 * 60 * 1000,
-      ).toISOString();
+        return {
+          id: stake,
+          type: "BTC" as const,
+          amount: 0,
+          status,
+          maturity: new Date(
+            Date.now() + 1000 * 60 * 60 * 24 * 30,
+          ).toISOString(),
+          bonusApr: 0,
+        };
+      }),
+      ...userStakes.map((stake) => {
+        const gbplAmount =
+          parseFloat(stake.gbplAmountRaw) / 10 ** TOKEN_CONFIG.GBPL.DECIMALS;
+        const aprBonus = stake.stakePeriod === "6m" ? 3 : 2;
+        const status: "active" | "awaitingLock" | "matured" =
+          stake.htlcStatus === "waiting" ? "awaitingLock" : "active";
 
-      return {
-        id: stake.id,
-        type: "GBPL" as const,
-        amount: gbplAmount,
-        status,
-        maturity,
-        bonusApr: aprBonus,
-      };
-    });
+        // Compute maturity from createdAt + stakePeriod (client-side)
+        const createdAt = new Date(stake.createdAt);
+        const days = stake.stakePeriod === "6m" ? 180 : 90;
+        const maturity = new Date(
+          createdAt.getTime() + days * 24 * 60 * 60 * 1000,
+        ).toISOString();
+
+        return {
+          id: stake.id,
+          type: "GBPL" as const,
+          amount: gbplAmount,
+          status,
+          maturity,
+          bonusApr: aprBonus,
+        };
+      }),
+    ];
   }, [userStakes]);
 
   // Calculate total GBPL staked from cached API value (all users, all statuses)
@@ -283,6 +352,7 @@ function BTCPageContent() {
           gbplAmount={selectedStake.gbplAmount}
           isOpen={lockOpen}
           stakeId={selectedStake.id}
+          htlcHash={selectedStake.htlcHash}
           stakePeriod={selectedStake.stakePeriod}
           onLock={handleConfirmLock}
           onOpenChange={setLockOpen}

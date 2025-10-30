@@ -12,11 +12,11 @@ import { useSignMessage } from "@solana/react";
 import { useState } from "react";
 
 import { assembleRedeemMessage } from "../../../lib/message-signature";
+import { DynamicBitcoinConnectButton } from "../wallet/dynamic-bitcoin-connect-button";
 
 import { signatureToBase64 } from "@/utils/signature";
 import { useSolana } from "@/components/solana-provider";
 import { WalletConnectButton } from "@/components/wallet/solana-connect-button";
-import { DynamicBitcoinConnectButton } from "../wallet/dynamic-bitcoin-connect-button";
 
 // Redeem button component that handles the signer
 function RedeemButton({
@@ -301,25 +301,15 @@ export function MyPositionsList({
             className="flex items-center justify-between p-4 even:bg-default-100/50"
           >
             <div className="min-w-0 flex-1">
-              <p className="font-semibold text-base">{p.amount} BTC</p>
-              <p className="text-sm text-default-500">
-                Expected: +{p.bonusApr}% bonus APR
-              </p>
-              <p className="text-sm text-default-500">
-                Matures: {new Date(p.maturity).toLocaleDateString()}
-              </p>
+              <Link
+                isExternal
+                showAnchorIcon
+                href={`https://mempool.space/tx/${p.id}`}
+                target="_blank"
+              >
+                {p.id.slice(0, 16)}...
+              </Link>
             </div>
-            {selectedAccount ? (
-              <RedeemButton
-                label="Unlock"
-                stakeId={p.id}
-                onRedeemSuccess={onRedeemSuccess}
-              />
-            ) : (
-              <Button isDisabled size="md" variant="flat">
-                Unlock
-              </Button>
-            )}
           </div>
         ))}
       </div>
